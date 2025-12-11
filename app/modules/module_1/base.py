@@ -149,3 +149,186 @@ class BaseChannel(ABC):
         # Kanal URL si oluşturur
         clean_name = channel_name.lower().replace(" ", "-")
         return f"/channel/{clean_name}"
+
+    @staticmethod
+    def calculate_engagement_rate(views: int, subscribers: int) -> float:
+        # Etkileşim oranını hesaplatır
+        if subscribers == 0:
+            return 0.0
+        return (views / subscribers) * 100
+
+    @staticmethod
+    def format_subscriber_count(count: int) -> str:
+        # Abone sayısını formatla
+        if count >= 1000000:
+            return f"{count / 1000000:.1f}M"
+        elif count >= 1000:
+            return f"{count / 1000:.1f}K"
+        return str(count)
+
+
+class BaseNotification(ABC):
+    # Temel bildirim abstract sınıfı
+
+    def __init__(self, notification_id: str, user_id: str, title: str, message: str,
+                 notification_type: NotificationType):
+        self.notification_id = notification_id
+        self.user_id = user_id
+        self.title = title
+        self.message = message
+        self.notification_type = notification_type
+        self.created_at = datetime.now()
+        self.is_read = False
+        self.sent_at: Optional[datetime] = None
+
+    @abstractmethod
+    def send(self) -> bool:
+        # Bildirim gönder
+        pass
+
+    @abstractmethod
+    def get_delivery_method(self) -> str:
+        # Teslimat yöntemini döndür
+        pass
+
+    def mark_as_read(self):
+        # Bildirim okundu işaretle
+        self.is_read = True
+
+    def mark_as_sent(self):
+        # Bildirim gönderildi işaretle
+        self.sent_at = datetime.now()
+
+    @classmethod
+    def create_welcome_notification(cls, user_id: str, username: str):
+        # Bildirim --> Hoş geldin - EmailNotification döndürür
+        # Bu metot concrete sınıflardan çağrılmalı
+        return {
+            'notification_id': f"welcome_{user_id}",
+            'user_id': user_id,
+            'title': "Hoş Geldiniz!",
+            'message': f"Merhaba {username}, platformumuza hoş geldiniz!",
+            'notification_type': NotificationType.EMAIL
+        }
+
+    @classmethod
+    def create_channel_notification(cls, user_id: str, channel_name: str):
+        # Kanal bildirimi oluştur - PushNotification döndürür
+        return {
+            'notification_id': f"channel_{user_id}",
+            'user_id': user_id,
+            'title': "Yeni Kanal",
+            'message': f"'{channel_name}' kanalınız oluşturuldu!",
+            'notification_type': NotificationType.PUSH
+        }
+
+    @staticmethod
+    def truncate_message(message: str, max_length: int = 100) -> str:
+        # Mesajı kısalt
+        if len(message) <= max_length:
+            return message
+        return message[:max_length - 3] + "..."
+
+    @staticmethod
+    def format_timestamp(timestamp: datetime) -> str:
+        # Zaman birimini formatlar
+        return timestamp.strftime("%d.%m.%Y %H:%M")
+
+
+# Concrete User Classes
+class AdminUser(BaseUser):
+    # Admin kullanıcı sınıfı
+
+    def get_permissions(self) -> List[str]:
+        # Admin superuser dır
+        return [
+            "create_channel", "delete_channel", "suspend_channel",
+            "manage_users", "view_analytics", "system_settings",
+            "moderate_content", "approve_channels"
+        ]
+
+    def can_create_channel(self) -> bool:
+        # Admin kanal oluşturma yetkisi
+        return True
+
+    def suspend_user(self, user_id: str) -> bool:
+        # Kullanıcıyı askıya al
+        return True
+
+    def view_system_analytics(self) -> Dict:
+        # Sistem analitiğini görüntüle
+        return {
+            "total_users": 0,
+            "total_channels": 0,
+            "system_health": "good"
+        }
+
+
+class ContentCreatorUser(BaseUser):
+    # İçerik üreticisi kullanıcı sınıfı
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.monetization_enabled = False
+        self.total_earnings = 0.0
+
+    def get_permissions(self) -> List[str]:
+        # İçerik üreticisi yetkileri
+        return [
+            "create_channel", "upload_video", "manage_own_channels",
+            "view_analytics", "monetize_content"
+        ]
+
+    def can_create_channel(self) -> bool:
+        # İçerik üreticisi kanal oluşturabilir
+        return True
+
+    def enable_monetization(self) -> bool:
+        # Para kazanmayı etkinleştirme
+        if len(self.channels) > 0:
+            self.monetization_enabled = True
+            return True
+        return False
+
+    def calculate_earnings(self, views: int, cpm: float = 2.0) -> float:
+        # Kazanç hesaplama
+        if self.monetization_enabled:
+            earnings = (views / 1000) * cpm
+            self.total_earnings += earnings
+            return earnings
+        return 0.0
+
+
+class ViewerUser(BaseUser):
+    # İzleyici kullanıcı sınıfı
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.subscriptions: List[str] = []
+        self.watch_history: List[str] = []
+        self.preferences: Dict = {}
+
+    def get_permissions(self) -> List[str]:
+        # izleyen yetkileri
+        return [
+            "watch_videos", "subscribe_channels", "comment_videos",
+            "create_playlists", "rate_videos"
+        ]
+
+    def can_create_channel(self) -> bool:
+        # İzleyici kanal oluşturamaz
+        return False
+
+    def subscribe_to_channel(self, channel_id: str) -> bool:
+        # Kanala abone ol
+        if channel_id not in self.subscriptions:
+            self.subscriptions.append(channel_id)
+            return True
+        return False
+
+    def add_to_watch_history(self, video_id: str):
+        # İzleme geçmişine ekler
+        if video_id not in self.watch_history:
+            self.watch_history.append(video_id)
+            if len(self.watch_history) > 100:
+                self.watch_history.pop(0)
