@@ -195,3 +195,116 @@ class VideoBase(ABC):
     def validate_content_policy(self) -> bool:
         """İçerik kurallarına uygun mu diye bakar."""
         pass
+    def transition_status(self, new_status: VideoStatus):
+        """
+        Video durumunu değiştirir. 
+        Durumlar arası geçiş mantığı (State Machine) burada kontrol edilir.
+        """
+        # Aynı duruma geçmeye çalışıyorsak işlem yapma
+        if self._status == new_status:
+            return
+
+        # Basit bir kontrol mekanizması
+        allowed = False
+        
+        # UPLOADED ise PROCESSING veya BLOCKED olabilir
+        if self._status == VideoStatus.UPLOADED:
+            if new_status in [VideoStatus.PROCESSING, VideoStatus.BLOCKED]:
+                allowed = True
+        
+        # PROCESSING ise PUBLISHED veya BLOCKED olabilir
+        elif self._status == VideoStatus.PROCESSING:
+            if new_status in [VideoStatus.PUBLISHED, VideoStatus.BLOCKED]:
+                allowed = True
+        
+        # PUBLISHED ise BLOCKED olabilir
+        elif self._status == VideoStatus.PUBLISHED:
+            if new_status == VideoStatus.BLOCKED:
+                allowed = True
+        
+        # BLOCKED ise tekrar PUBLISHED olabilir
+        elif self._status == VideoStatus.BLOCKED:
+            if new_status == VideoStatus.PUBLISHED:
+                allowed = True
+        
+        if allowed:
+            self._status = new_status
+            # Yayınlandıysa tarihi atar
+            if new_status == VideoStatus.PUBLISHED and self._published_at is None:
+                self._published_at = datetime.now()
+        else:
+            raise InvalidVideoStatusError(self._status.value, new_status.value, self._video_id)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Objeyi dict'e çevirir (JSON yanıtları için kullanışlı)."""
+        return {
+            "video_id": self._video_id,
+            "channel_id": self._channel_id,
+            "title": self._title,
+            "description": self._description,
+            "duration_seconds": self._duration_seconds,
+            "visibility": self._visibility.value,
+            "status": self._status.value,
+            "created_at": self._created_at.isoformat() if self._created_at else None,
+            "published_at": self._published_at.isoformat() if self._published_at else None,
+            "tags": self._tags,
+            "type": self.get_video_type()
+        }
+
+    def __str__(self):
+        return f"[{self.get_video_type()}] {self.title} ({self.status.value})"
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__} id={self.video_id} title='{self.title}'>"
+
+    # --- Statik Metotlar ---
+
+    @staticmethod
+    def validate_title_format(title: str) -> bool:
+        """
+        Başlığın formatını kontrol eder.
+        Çok uzunsa veya yasaklı karakter varsa False döner.
+        """
+        return validate_video_title(title)
+
+    @staticmethod
+    def format_duration_display(seconds: int) -> str:
+        """Saniyeyi dakika:saniye formatına çevirir."""
+        return format_duration(seconds)
+
+    # --- Class Metotları ---
+
+    @classmethod
+    def get_available_statuses(cls) -> List[str]:
+        """Tüm video durumlarını liste olarak döndürür."""
+        return [s.value for s in VideoStatus]
+
+    @classmethod
+    def create_preview_object(cls, title: str, duration: int) -> Optional['VideoBase']:
+        """
+        Test amaçlı geçici (preview) bir nesne oluşturmayı dener.
+        """
+        if cls is VideoBase:
+            raise NotImplementedError("VideoBase abstract olduğu için direkt üretilemez.")
+        
+        # Basitleştirilmiş bir önizleme nesnesi oluşturmayı dener.
+        try:
+            return cls(
+                channel_id="PREVIEW_CHANNEL",
+                title=f"ÖNİZLEME: {title}",
+                description="Otomatik oluşturulan önizleme.",
+                duration_seconds=duration
+            )
+        except TypeError:
+            # Eğer imza uyuşmazsa None dönebilir veya hatayı yok eder.
+            return None
+    
+    @classmethod
+    def get_visibility_description(cls, visibility: VideoVisibility) -> str:
+        """Görünürlük ayarının kullanıcıya gösterilecek açıklaması."""
+        descriptions = {
+            VideoVisibility.PUBLIC: "Herkese açık.",
+            VideoVisibility.PRIVATE: "Sadece ben görebilirim.",
+            VideoVisibility.UNLISTED: "Liste dışı (link ile erişim)."
+        }
+        return descriptions.get(visibility, "Bilinmiyor.")
