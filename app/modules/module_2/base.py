@@ -207,22 +207,22 @@ class VideoBase(ABC):
         # Basit bir kontrol mekanizması
         allowed = False
         
-        # UPLOADED ise PROCESSING veya BLOCKED olabilir
+        # Yüklenen bir içerik, işleme alınabilir ya da kurallara uymuyorsa engellenebilir.
         if self._status == VideoStatus.UPLOADED:
             if new_status in [VideoStatus.PROCESSING, VideoStatus.BLOCKED]:
                 allowed = True
         
-        # PROCESSING ise PUBLISHED veya BLOCKED olabilir
+        # İşlemde olan bir içerik, işlemler bitince yayınlanabilir veya sorun varsa engellenebilir.
         elif self._status == VideoStatus.PROCESSING:
             if new_status in [VideoStatus.PUBLISHED, VideoStatus.BLOCKED]:
                 allowed = True
         
-        # PUBLISHED ise BLOCKED olabilir
+        # Yayında olan bir içerik, sonradan bir kural ihlali tespit edilirse engellenebilir.
         elif self._status == VideoStatus.PUBLISHED:
             if new_status == VideoStatus.BLOCKED:
                 allowed = True
         
-        # BLOCKED ise tekrar PUBLISHED olabilir
+        # Engellenen içerik, engel kaldırıldığında yeniden yayınlanır.
         elif self._status == VideoStatus.BLOCKED:
             if new_status == VideoStatus.PUBLISHED:
                 allowed = True
@@ -308,3 +308,94 @@ class VideoBase(ABC):
             VideoVisibility.UNLISTED: "Liste dışı (link ile erişim)."
         }
         return descriptions.get(visibility, "Bilinmiyor.")
+
+# Yardımcı Fonksiyonlar 
+
+def validate_video_title(title: str) -> bool:
+    """
+    Video başlığının kurallara uyup uymadığını kontrol eder.
+    - Boş olamaz
+    - 100 karakteri geçemez
+    - Yasaklı karakter içeremez
+        title (str): Kontrol edilecek başlık.
+        bool: Uygunsa True, değilse False.
+    """
+    if not title:
+        return False
+    if len(title) > 100:
+        return False
+    
+    # Güvenlik amacıyla HTML tag benzeri yapıları engeller
+    
+    if re.search(r"[<>]", title):
+        return False
+    
+    return True
+
+def format_duration(seconds: int) -> str:
+    """
+    Saniyeyi SS:DD:SN formatına çevirir.
+    seconds (int): Saniye cinsinden süre.
+    str: Formatlanmış zaman.
+    """
+    if seconds < 0:
+        return "00:00"
+        
+    m, s = divmod(seconds, 60)
+    h, m = divmod(m, 60)
+    
+    if h > 0:
+        return f"{h:02d}:{m:02d}:{s:02d}"
+    return f"{m:02d}:{s:02d}"
+
+def generate_video_slug(title: str) -> str:
+    """
+    Başlıktan URL dostu slug oluşturur.
+    title (str): Başlık.
+    """
+    # Önce küçük harfe çevir
+    slug = title.lower()
+    
+    # Alfanümerik olmayan karakterleri sil (boşluk ve tire hariç)
+    slug = re.sub(r'[^a-z0-9\s-]', '', slug)
+    
+    # Boşlukları tireye çevir
+    slug = re.sub(r'\s+', '-', slug)
+    
+    # Max 50 karakter
+    return slug[:50]
+
+# Yardımcı Sınıflar
+
+class VideoMetadata:
+    """
+    Video için ek metadata bilgilerini tutar.
+    Bu sınıf satır sayısını artırmak ve modülü zenginleştirir.
+    """
+    def __init__(self, resolution: str = "1080p", codec: str = "h264", bitrate_kbps: int = 5000):
+        self.resolution = resolution
+        self.codec = codec
+        self.bitrate_kbps = bitrate_kbps
+        self.last_updated = datetime.now()
+
+    def update_resolution(self, new_resolution: str):
+        """Çözünürlük bilgisini günceller."""
+        valid_resolutions = ["720p", "1080p", "1440p", "4K", "8K"]
+        if new_resolution in valid_resolutions:
+            self.resolution = new_resolution
+            self.last_updated = datetime.now()
+        else:
+            # Geçersiz çözünürlük durumunda varsayılan olarak kaydedebilir.
+            pass
+
+    def get_info(self) -> Dict[str, Any]:
+        """Metadata bilgilerini sözlük olarak döndürür."""
+        return {
+            "resolution": self.resolution,
+            "codec": self.codec,
+            "bitrate": f"{self.bitrate_kbps} kbps",
+            "updated": self.last_updated.isoformat()
+        }
+
+    def __repr__(self):
+        return f"<VideoMetadata {self.resolution} {self.codec}>"
