@@ -513,7 +513,6 @@ class PushNotification(BaseNotification):
     def set_high_priority(self):
         self.priority = "high"
 
-
 # veri class'ı
 @dataclass
 class UserChannelSubscription:
@@ -527,21 +526,17 @@ class UserChannelSubscription:
     def toggle_notifications(self):
         self.notifications_enabled = not self.notifications_enabled
 
-
 # Exception class ı
 class BaseException(Exception):
     pass
-
 
 # user not found
 class UserNotFoundException(BaseException):
     pass
 
-
 # channel not found
 class ChannelNotFoundException(BaseException):
     pass
-
 
 # user exists
 class DuplicateUserException(BaseException):
