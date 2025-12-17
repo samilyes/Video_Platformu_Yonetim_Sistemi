@@ -44,7 +44,7 @@ def run_demo():
     # Eğitim Kanalı
     channel_edu = "channel_tech_edu_001"
     
-    print(f"[USER] '{channel_edu}' kanalı yeni bir standart video oluşturuyor.")
+    print(f"'{channel_edu}' kanalı yeni bir standart video oluşturuyor.")
     v1 = service.create_standard_video(
         channel_id=channel_edu,
         title="Python ile OOP Dersleri #1",
@@ -57,7 +57,7 @@ def run_demo():
     print(f"Durum: {v1.status.value}, Tür: {v1.get_video_type()}")
 
     # Short videosu
-    print(f"\n[USER] '{channel_edu}' kanalı bir Short video oluşturuyor.")
+    print(f"\n'{channel_edu}' kanalı bir Short video oluşturuyor.")
     v2 = service.create_short_video(
         channel_id=channel_edu,
         title="Python İpucu: List Comprehension Nedir?",
@@ -69,7 +69,7 @@ def run_demo():
 
     # Oyun Kanalı
     channel_gamer = "channel_gamer_zone_99"
-    print(f"\n[USER] '{channel_gamer}' kanalı bir Canlı Yayın planlıyor.")
+    print(f"\n'{channel_gamer}' kanalı bir Canlı Yayın planlıyor.")
     v3 = service.create_live_stream(
         channel_id=channel_gamer,
         title="Büyük Turnuva Finali - CANLI",
@@ -83,10 +83,10 @@ def run_demo():
     print_step(3, "Video Yükleme ve İşleme Süreci.")
 
     try:
-        print(f"[UPLOAD] '{v1.title}' yükleniyor.")
+        print(f"'{v1.title}' yükleniyor.")
         service.upload_video(v1.video_id, b"dosya_binary_data_mp4")
         
-        print(f"[PROCESS] '{v1.title}' işleniyor")
+        print(f"'{v1.title}' işleniyor")
         service.process_video(v1.video_id)
         
         # Son durumu kontrol eder
@@ -97,10 +97,10 @@ def run_demo():
         print(f"İşlem başarısız: {e}")
 
     try:
-        print(f"\n[UPLOAD] '{v2.title}' yükleniyor.")
+        print(f"\n'{v2.title}' yükleniyor.")
         service.upload_video(v2.video_id, b"dosya_binary_data_mov")
         
-        print(f"[PROCESS] '{v2.title}' işleniyor.")
+        print(f"'{v2.title}' işleniyor.")
         service.process_video(v2.video_id)
         print(f" -> SONUÇ: '{v2.title}' YAYINDA.")
     except Exception as e:
@@ -110,7 +110,7 @@ def run_demo():
     print_step(4, "Canlı Yayın Başlıyor")
     
     # Yayıncı yayını başlatıyor
-    print(f"[STREAM] '{v3.title}' için yayın sinyali gönderiliyor")
+    print(f"'{v3.title}' için yayın sinyali gönderiliyor")
     v3.start_stream()
     # Repo'yu güncel tutmak için save tutar
     repo.save(v3)
@@ -121,6 +121,75 @@ def run_demo():
         v3.max_concurrent_viewers = 15000
     
     time.sleep(0.5)
-    print("\n[STREAM] Yayın sona eriyor...")
+    print("\nYayın sona eriyor...")
     v3.end_stream(duration_seconds=3600)
     print(f" -> Yayın bitti. Toplam Süre: {v3.duration_seconds} saniye.")
+
+    # ADIM 5: Analitik ve Raporlama
+
+    print_step(5, "Gelir ve İstatistik Analizi")
+    print("Her video türü kendi metodunu kullanır.\n")
+
+    all_videos = repo.find_all()
+    total_potential = 0.0
+
+    print(f"{'BAŞLIK':<40} | {'TÜR':<15} | {'PUAN':<5}")
+    print("-" * 70)
+
+    for vid in all_videos:
+        score = vid.calculate_monetization_potential()
+        total_potential += score
+        print(f"{vid.title[:38]:<40} | {vid.get_video_type():<15} | {score:.1f}")
+
+    print("-" * 70)
+    print(f"Ortalama Platform Puanı: {total_potential / len(all_videos):.2f}")
+
+    # ADIM 6: Filtreleme
+
+    print_step(6, "Gelişmiş Arama ve Filtreleme")
+    print("Kanal: 'channel_tech_edu_001' olan videolar aranıyor.")
+    edu_videos = service.list_videos_by_channel(channel_edu)
+    for v in edu_videos:
+        print(f" * {v.title}")
+
+    print("\nSüresi 10 dakikadan uzun videolar.")
+    long_videos = service.search_videos(min_duration=600)
+    for v in long_videos:
+        print(f" * {v.title} ({v.duration_seconds}s)")
+
+    # ADIM 7: Hata Senaryosu ve Admin Engellemesi
+
+    print_step(7, "Yönetici İşlemleri ve Hata Yönetimi")
+
+    # Yeni bir 'sakıncalı' video oluşturma
+    v_bad = service.create_short_video(
+        channel_id="user_spammer",
+        title="Yasaklı İçerik",
+        duration_seconds=10,
+        visibility=VideoVisibility.PUBLIC
+    )
+    # Yasaklı videoyu process etme
+    service.process_video(v_bad.video_id)
+    print(f"Oluşturuldu: {v_bad.title} (Status: {v_bad.status.value})")
+
+    print("\nBu içerik platform kurallarına aykırı bulundu. Engelleniyor.")
+    service.block_video(v_bad.video_id, reason="Topluluk Kuralları İhlali")
+    
+    # Durumu kontrol et
+    blocked_v = repo.get_by_id(v_bad.video_id)
+    print(f" -> Son Durum: {blocked_v.status.value.upper()}")
+    
+    # Geçersiz durum testi
+    print("\nEngelli videoyu geçersiz duruma almaya çalışma testi.")
+    try:
+        # BLOCKED -> UPLOADED geçişi mantıken imkansızdır
+        blocked_v.transition_status(VideoStatus.UPLOADED)
+        print("Mantık hatası var.")
+    except Exception as e:
+        print(f"Beklenen Hata Yakalandı: {e}")
+    print_header("DEMO BAŞARIYLA TAMAMLANDI")
+    print(f"Toplam Video Sayısı: {repo.count()}")
+    print("Program sonlanıyor.")
+
+if __name__ == "__main__":
+    run_demo()
