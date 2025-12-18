@@ -1,205 +1,205 @@
 import json
 import os
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Dict, Any
 from datetime import datetime
-from .base import (
-    BaseUser, BaseChannel, UserRole, ChannelStatus, ChannelType,
+from base import (
+    BaseUser, BaseChannel, UserRole, ChannelType, ChannelStatus,
     AdminUser, ContentCreatorUser, ViewerUser,
     PublicChannel, PrivateChannel, PremiumChannel,
-    UserChannelSubscription,
     UserNotFoundException, ChannelNotFoundException,
     DuplicateUserException, DuplicateChannelException
 )
 
-# Kullanıcı ve Kanal verilerinin saklanması ve erişimi için repository sınıfları
 
-class BaseRepository:
-    # Temel repository
+class UserRepository:
+    # Kullanıcı veri erişim sınıfı - kullanıcı CRUD işlemleri için
 
-    def __init__(self, data_file: str):
-        self.data_file = data_file
-        self.data = self._load_data()
+    def __init__(self, data_file: str = "users.json"):
+        print(f"System: Initializing UserRepository with data file: {data_file}")
 
-    def _load_data(self) -> Dict:
-        # Dosyadan veri yükle
-        if os.path.exists(self.data_file):
-            try:
-                with open(self.data_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, FileNotFoundError):
-                return {}
-        return {}
+        self.__data_file = data_file  # Private attribute
+        self.__users = {}  # Private attribute - user_id -> BaseUser
+        self.__username_index = {}  # Private attribute - username -> user_id
+        self.__email_index = {}  # Private attribute - email -> user_id
+        self.__last_modified = datetime.now()  # Private attribute
 
-    def _save_data(self):
-        # Veriyi dosyaya kaydet
-        os.makedirs(os.path.dirname(self.data_file), exist_ok=True)
-        with open(self.data_file, 'w', encoding='utf-8') as f:
-            json.dump(self.data, f, ensure_ascii=False, indent=2, default=str)
-
-    def backup_data(self, backup_path: str) -> bool:
-        # Veriyi yedekle
-        try:
-            import shutil
-            shutil.copy2(self.data_file, backup_path)
-            return True
-        except Exception:
-            return False
-
-    @classmethod
-    def validate_data_structure(cls, data: Dict) -> bool:
-        # Veri yapısını doğrula
-        return isinstance(data, dict)
-
-    @staticmethod
-    def generate_backup_filename(original_file: str) -> str:
-        # Yedek dosya adı oluştur
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        name, ext = os.path.splitext(original_file)
-        return f"{name}_backup_{timestamp}{ext}"
-# ----------------------------------------------------------------------------> 5.gun
-class UserRepository(BaseRepository):
-    # Kullanıcı veri erişim sınıfı
-
-    def __init__(self, data_file: str = "data/users.json"):
-        super().__init__(data_file)
-        if 'users' not in self.data:
-            self.data['users'] = {}
-        if 'subscriptions' not in self.data:
-            self.data['subscriptions'] = {}
-
-    def _user_data_to_object(self, user_data: Dict) -> BaseUser:
-        # Veri dict'ini user objesine çevir
-        role = UserRole(user_data['role'])
-
-        # Role göre doğru sınıfı oluştur
-        if role == UserRole.ADMIN:
-            user = AdminUser(
-                user_data['user_id'],
-                user_data['username'],
-                user_data['email'],
-                user_data['password_hash'],
-                role
-            )
-        elif role == UserRole.CONTENT_CREATOR:
-            user = ContentCreatorUser(
-                user_data['user_id'],
-                user_data['username'],
-                user_data['email'],
-                user_data['password_hash'],
-                role
-            )
-            # ContentCreator özel alanları
-            if 'monetization_enabled' in user_data:
-                user.monetization_enabled = user_data['monetization_enabled']
-            if 'total_earnings' in user_data:
-                user.total_earnings = user_data['total_earnings']
+        # Dosya varsa yükle
+        if os.path.exists(self.__data_file):
+            self._load_from_file()
         else:
-            user = ViewerUser(
-                user_data['user_id'],
-                user_data['username'],
-                user_data['email'],
-                user_data['password_hash'],
-                role
-            )
-            # Viewer özel alanları
-            if 'subscriptions' in user_data:
-                user.subscriptions = user_data['subscriptions']
-            if 'watch_history' in user_data:
-                user.watch_history = user_data['watch_history']
-            if 'preferences' in user_data:
-                user.preferences = user_data['preferences']
+            print(f"System: Data file {data_file} does not exist, starting with empty repository")
+            self._initialize_empty_repository()
 
-        # Ortak alanları ayarla
-        user.created_at = datetime.fromisoformat(user_data['created_at'])
-        user.updated_at = datetime.fromisoformat(user_data['updated_at'])
-        user.is_active = user_data['is_active']
-        user.profile_picture = user_data.get('profile_picture')
-        user.bio = user_data.get('bio')
-        user.channels = user_data.get('channels', [])
+        print(f"System: UserRepository initialized with {len(self.__users)} users")
 
-        return user
+    def _initialize_empty_repository(self):
+        # Boş repository başlat
+        self.__users = {}
+        self.__username_index = {}
+        self.__email_index = {}
+        self.__last_modified = datetime.now()
+        print(f"System: Empty repository initialized")
 
-    def _user_object_to_data(self, user: BaseUser) -> Dict:
-        """User objesini veri dict'ine çevir"""
-        data = {
+    def _load_from_file(self):
+        # Dosyadan kullanıcıları yükle
+        try:
+            with open(self.__data_file, 'r', encoding='utf-8') as file:
+                data = json.load(file)
+
+            users_data = data.get('users', {})
+            for user_id, user_data in users_data.items():
+                user = self._deserialize_user(user_data)
+                if user:
+                    self.__users[user_id] = user
+                    self._update_indexes(user)
+
+            print(f"System: Successfully loaded {len(self.__users)} users from file")
+
+        except Exception as e:
+            print(f"System: Error loading from file: {e}")
+            self._initialize_empty_repository()
+
+    def _save_to_file(self):
+        # Kullanıcıları dosyaya kaydet
+        try:
+            users_data = {user_id: self._serialize_user(user) for user_id, user in self.__users.items()}
+            data = {
+                'users': users_data,
+                'metadata': {'last_modified': self.__last_modified.isoformat(), 'total_users': len(self.__users)}
+            }
+
+            with open(self.__data_file, 'w', encoding='utf-8') as file:
+                json.dump(data, file, indent=2, ensure_ascii=False)
+
+            print(f"System: Successfully saved {len(users_data)} users to file")
+
+        except Exception as e:
+            print(f"System: Error saving to file: {e}")
+            raise
+
+    def _serialize_user(self, user: BaseUser) -> Dict[str, Any]:
+        # Kullanıcıyı dictionary'ye çevir
+        return {
             'user_id': user.user_id,
             'username': user.username,
             'email': user.email,
-            'password_hash': user.password_hash,
+            'password_hash': user.password,
             'role': user.role.value,
+            'user_type': type(user).__name__,
             'created_at': user.created_at.isoformat(),
-            'updated_at': user.updated_at.isoformat(),
-            'is_active': user.is_active,
-            'profile_picture': user.profile_picture,
-            'bio': user.bio,
-            'channels': user.channels
+            'is_active': user.is_active
         }
 
-        # Özel alanları ekle
-        if isinstance(user, ContentCreatorUser):
-            data.update({
-                'monetization_enabled': user.monetization_enabled,
-                'total_earnings': user.total_earnings
-            })
-        elif isinstance(user, ViewerUser):
-            data.update({
-                'subscriptions': user.subscriptions,
-                'watch_history': user.watch_history,
-                'preferences': user.preferences
-            })
+    def _deserialize_user(self, user_data: Dict[str, Any]) -> Optional[BaseUser]:
+        # Dictionary'den kullanıcı oluştur
+        try:
+            user_type = user_data.get('user_type', 'ViewerUser')
+            role = UserRole(user_data['role'])
 
-        return data
+            user_classes = {
+                'AdminUser': AdminUser,
+                'ContentCreatorUser': ContentCreatorUser
+            }
+
+            user_class = user_classes.get(user_type, ViewerUser)
+            user = user_class(
+                user_data['user_id'], user_data['username'],
+                user_data['email'], user_data['password_hash'], role
+            )
+
+            if 'created_at' in user_data:
+                user.created_at = datetime.fromisoformat(user_data['created_at'])
+            if 'is_active' in user_data:
+                user.is_active = user_data['is_active']
+
+            return user
+
+        except Exception as e:
+            print(f"System: Error deserializing user: {e}")
+            return None
+
+    def _update_indexes(self, user: BaseUser):
+        self.__username_index[user.username.lower()] = user.user_id
+        self.__email_index[user.email.lower()] = user.user_id
 
     def create_user(self, user: BaseUser) -> BaseUser:
-        """Yeni kullanıcı oluştur"""
-        if user.user_id in self.data['users']:
-            raise DuplicateUserException(f"Kullanıcı ID {user.user_id} zaten mevcut")
+        print(f"System: Creating user {user.user_id} with username '{user.username}'")
 
-        # Email kontrolü - sadece mevcut veriler varsa
-        if self.data['users']:
-            for existing_user_data in self.data['users'].values():
-                if existing_user_data.get('email') == user.email:
-                    raise DuplicateUserException(f"Email {user.email} zaten kullanılıyor")
+        if not isinstance(user, BaseUser):
+            raise TypeError("User must be instance of BaseUser")
 
-            # Username kontrolü - sadece mevcut veriler varsa
-            for existing_user_data in self.data['users'].values():
-                if existing_user_data.get('username') == user.username:
-                    raise DuplicateUserException(f"Kullanıcı adı {user.username} zaten kullanılıyor")
+        if not self._validate_user_data(user):
+            raise ValueError("User validation failed")
 
-        self.data['users'][user.user_id] = self._user_object_to_data(user)
-        self._save_data()
+        if user.user_id in self.__users:
+            raise DuplicateUserException(f"User with ID {user.user_id} already exists")
+
+        if user.username.lower() in self.__username_index:
+            raise DuplicateUserException(f"Username '{user.username}' already exists")
+
+        if user.email.lower() in self.__email_index:
+            raise DuplicateUserException(f"Email '{user.email}' already exists")
+
+        self.__users[user.user_id] = user
+        self._update_indexes(user)
+        self.__last_modified = datetime.now()
+
+        try:
+            self._save_to_file()
+            print(f"System: User {user.user_id} created and saved successfully")
+        except Exception as e:
+            del self.__users[user.user_id]
+            print(f"System: Error saving user, rolled back: {e}")
+            raise
+
         return user
 
     def get_user_by_id(self, user_id: str) -> BaseUser:
-        """ID ile kullanıcı getir"""
-        if user_id not in self.data['users']:
-            raise UserNotFoundException(f"Kullanıcı ID {user_id} bulunamadı")
+        # ID ile kullanıcı getir
+        if not isinstance(user_id, str) or not user_id.strip():
+            raise ValueError("User ID must be non-empty string")
 
-        user_data = self.data['users'][user_id]
-        return self._user_data_to_object(user_data)
+        user_id = user_id.strip()
+        if user_id not in self.__users:
+            raise UserNotFoundException(f"User with ID {user_id} not found")
+
+        return self.__users[user_id]
 
     def get_user_by_username(self, username: str) -> BaseUser:
-        """Kullanıcı adı ile kullanıcı getir"""
-        for user_data in self.data['users'].values():
-            if user_data['username'] == username:
-                return self._user_data_to_object(user_data)
-        raise UserNotFoundException(f"Kullanıcı adı '{username}' bulunamadı")
+        # Username ile kullanıcı getir
+        if not isinstance(username, str) or not username.strip():
+            raise ValueError("Username must be non-empty string")
 
-    def get_user_by_email(self, email: str) -> BaseUser:
-        """Email ile kullanıcı getir"""
-        for user_data in self.data['users'].values():
-            if user_data['email'] == email:
-                return self._user_data_to_object(user_data)
-        raise UserNotFoundException(f"Email '{email}' bulunamadı")
+        username_lower = username.strip().lower()
+        if username_lower not in self.__username_index:
+            raise UserNotFoundException(f"User with username '{username}' not found")
 
-    def update_user(self, user: BaseUser) -> BaseUser:
-        """Kullanıcı bilgilerini güncelle"""
-        if user.user_id not in self.data['users']:
-            raise UserNotFoundException(f"Kullanıcı ID {user.user_id} bulunamadı")
+        return self.__users[self.__username_index[username_lower]]
 
-        self.data['users'][user.user_id] = self._user_object_to_data(user)
-        self._save_data()
-        return user
+    def get_all_users(self) -> List[BaseUser]:
+        return list(self.__users.values())
+
+    def get_users_by_role(self, role: UserRole) -> List[BaseUser]:
+        return [user for user in self.__users.values() if user.role == role]
+
+    def get_user_count(self) -> int:
+        return len(self.__users)
+
+    def _validate_user_data(self, user: BaseUser) -> bool:
+        # Kullanıcı verilerini doğrula
+        if not user.user_id or len(user.user_id.strip()) < 3:
+            return False
+
+        if not user.username or len(user.username.strip()) < 3:
+            return False
+
+        if not user.email or '@' not in user.email:
+            return False
+
+        if not user.password or len(user.password) < 8:
+            return False
+
+        return True
 
 # ------------------------------------------------------------------------------------> 6.gun 202 -314
 
@@ -316,3 +316,125 @@ class UserRepository(BaseRepository):
                 'channel_class': type(channel).__name__
             }
 
+# --------------------------------------- 7. gun
+
+    def _deserialize_channel(self, channel_data: Dict[str, Any]) -> Optional[BaseChannel]:
+        # Dictionary'den kanal oluştur
+        try:
+            channel_class = channel_data.get('channel_class', 'PublicChannel')
+            channel_type = ChannelType(channel_data['channel_type'])
+
+            channel_classes = {
+                'PublicChannel': PublicChannel,
+                'PrivateChannel': PrivateChannel
+            }
+
+            channel_cls = channel_classes.get(channel_class, PremiumChannel)
+            channel = channel_cls(
+                channel_data['channel_id'], channel_data['name'],
+                channel_data['description'], channel_data['owner_id'], channel_type
+            )
+
+            # Ek alanları ayarla
+            if 'status' in channel_data:
+                channel.status = ChannelStatus(channel_data['status'])
+            if 'created_at' in channel_data:
+                channel.created_at = datetime.fromisoformat(channel_data['created_at'])
+            if 'subscriber_count' in channel_data:
+                channel.subscriber_count = channel_data['subscriber_count']
+            if 'moderators' in channel_data:
+                channel.moderators = set(channel_data['moderators'])
+
+            return channel
+
+        except Exception as e:
+            print(f"System: Error deserializing channel: {e}")
+            return None
+
+    def _update_indexes(self, channel: BaseChannel):
+        # İndeksleri güncelle
+        if channel.owner_id not in self.__owner_index:
+            self.__owner_index[channel.owner_id] = []
+        if channel.channel_id not in self.__owner_index[channel.owner_id]:
+            self.__owner_index[channel.owner_id].append(channel.channel_id)
+
+        if channel.channel_type not in self.__type_index:
+            self.__type_index[channel.channel_type] = []
+        if channel.channel_id not in self.__type_index[channel.channel_type]:
+            self.__type_index[channel.channel_type].append(channel.channel_id)
+
+    def create_channel(self, channel: BaseChannel) -> BaseChannel:
+        # Yeni kanal oluştur
+        print(f"System: Creating channel {channel.channel_id} with name '{channel.name}'")
+
+        if not isinstance(channel, BaseChannel):
+            raise TypeError("Channel must be instance of BaseChannel")
+
+        if not self._validate_channel_data(channel):
+            raise ValueError("Channel validation failed")
+
+        # Duplicate kontrolü
+        if channel.channel_id in self.__channels:
+            raise DuplicateChannelException(f"Channel with ID {channel.channel_id} already exists")
+
+        # Kanalı ekle
+        self.__channels[channel.channel_id] = channel
+        self._update_indexes(channel)
+        self.__last_modified = datetime.now()
+
+        try:
+            self._save_to_file()
+            print(f"System: Channel {channel.channel_id} created and saved successfully")
+        except Exception as e:
+            del self.__channels[channel.channel_id]
+            print(f"System: Error saving channel, rolled back: {e}")
+            raise
+
+        return channel
+
+    def get_channel_by_id(self, channel_id: str) -> BaseChannel:
+        # ID ile kanal getir
+        if not isinstance(channel_id, str) or not channel_id.strip():
+            raise ValueError("Channel ID must be non-empty string")
+
+        channel_id = channel_id.strip()
+        if channel_id not in self.__channels:
+            raise ChannelNotFoundException(f"Channel with ID {channel_id} not found")
+
+        return self.__channels[channel_id]
+
+    def get_all_channels(self) -> List[BaseChannel]:
+        return list(self.__channels.values())
+
+    def get_channels_by_owner(self, owner_id: str) -> List[BaseChannel]:
+        if owner_id not in self.__owner_index:
+            return []
+
+        channel_ids = self.__owner_index[owner_id]
+        return [self.__channels[cid] for cid in channel_ids if cid in self.__channels]
+
+    def get_channels_by_type(self, channel_type: ChannelType) -> List[BaseChannel]:
+        if channel_type not in self.__type_index:
+            return []
+
+        channel_ids = self.__type_index[channel_type]
+        return [self.__channels[cid] for cid in channel_ids if cid in self.__channels]
+
+    def get_channel_count(self) -> int:
+        return len(self.__channels)
+
+    def _validate_channel_data(self, channel: BaseChannel) -> bool:
+        # Kanal verilerini doğrula
+        return (channel.channel_id and len(channel.channel_id.strip()) >= 3 and
+                channel.name and len(channel.name.strip()) >= 3 and
+                channel.description and len(channel.description.strip()) >= 10 and
+                channel.owner_id and len(channel.owner_id.strip()) >= 3)
+
+    @staticmethod
+    def validate_channel_name(name: str) -> bool:
+        return (isinstance(name, str) and name.strip() and 3 <= len(name.strip()) <= 50)
+
+    @staticmethod
+    def validate_channel_description(description: str) -> bool:
+        return (isinstance(description, str) and description.strip() and
+                10 <= len(description.strip()) <= 500)
