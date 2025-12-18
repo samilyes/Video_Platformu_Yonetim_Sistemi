@@ -201,4 +201,118 @@ class UserRepository(BaseRepository):
         self._save_data()
         return user
 
-# ------------------------------------------------------------------------------------> 6.gun
+# ------------------------------------------------------------------------------------> 6.gun 202 -314
+
+        @classmethod
+        def create_with_default_admin(cls, data_file: str = "users.json"):
+            repo = cls(data_file)
+
+            admin_users = repo.get_users_by_role(UserRole.ADMIN)
+
+            if not admin_users:
+                admin_user = AdminUser(
+                    "admin_default", "admin", "admin@system.local",
+                    "hashed_admin_password_123", UserRole.ADMIN
+                )
+
+                try:
+                    repo.create_user(admin_user)
+                    print(f"System: Default admin user created successfully")
+                except Exception as e:
+                    print(f"System: Error creating default admin: {e}")
+
+            return repo
+
+        @staticmethod
+        def validate_username(username: str) -> bool:
+            return (isinstance(username, str) and username.strip() and 3 <= len(username.strip()) <= 30)
+
+        @staticmethod
+        def validate_email(email: str) -> bool:
+            return (isinstance(email, str) and email.strip() and '@' in email and '.' in email.split('@')[1])
+
+    class ChannelRepository:
+        # Kanal veri erişim sınıfı - kanal CRUD işlemleri için
+
+        def __init__(self, data_file: str = "channels.json"):
+            print(f"System: Initializing ChannelRepository with data file: {data_file}")
+
+            self.__data_file = data_file  # Private attribute
+            self.__channels = {}  # Private attribute - channel_id -> BaseChannel
+            self.__owner_index = {}  # Private attribute - owner_id -> List[channel_id]
+            self.__type_index = {}  # Private attribute - channel_type -> List[channel_id]
+            self.__last_modified = datetime.now()  # Private attribute
+
+            # Dosya varsa yükle
+            if os.path.exists(self.__data_file):
+                self._load_from_file()
+            else:
+                print(f"System: Data file {data_file} does not exist, starting with empty repository")
+                self._initialize_empty_repository()
+
+            print(f"System: ChannelRepository initialized with {len(self.__channels)} channels")
+
+        def _initialize_empty_repository(self):
+            # Boş repository başlat
+            self.__channels = {}
+            self.__owner_index = {}
+            self.__type_index = {}
+            self.__last_modified = datetime.now()
+            print(f"System: Empty channel repository initialized")
+
+        def _load_from_file(self):
+            # Dosyadan kanalları yükle
+            try:
+                with open(self.__data_file, 'r', encoding='utf-8') as file:
+                    data = json.load(file)
+
+                channels_data = data.get('channels', {})
+                for channel_id, channel_data in channels_data.items():
+                    channel = self._deserialize_channel(channel_data)
+                    if channel:
+                        self.__channels[channel_id] = channel
+                        self._update_indexes(channel)
+
+                print(f"System: Successfully loaded {len(self.__channels)} channels from file")
+
+            except Exception as e:
+                print(f"System: Error loading channels from file: {e}")
+                self._initialize_empty_repository()
+
+        def _save_to_file(self):
+            # Kanalları dosyaya kaydet
+            try:
+                channels_data = {cid: self._serialize_channel(ch) for cid, ch in self.__channels.items()}
+                data = {
+                    'channels': channels_data,
+                    'metadata': {'last_modified': self.__last_modified.isoformat(),
+                                 'total_channels': len(self.__channels)}
+                }
+
+                with open(self.__data_file, 'w', encoding='utf-8') as file:
+                    json.dump(data, file, indent=2, ensure_ascii=False)
+
+                print(f"System: Successfully saved {len(channels_data)} channels to file")
+
+            except Exception as e:
+                print(f"System: Error saving channels to file: {e}")
+                raise
+
+        def _serialize_channel(self, channel: BaseChannel) -> Dict[str, Any]:
+            # Kanalı dictionary'ye çevir
+            return {
+                'channel_id': channel.channel_id,
+                'name': channel.name,
+                'description': channel.description,
+                'owner_id': channel.owner_id,
+                'channel_type': channel.channel_type.value,
+                'status': channel.status.value,
+                'created_at': channel.created_at.isoformat(),
+                'updated_at': channel.updated_at.isoformat(),
+                'subscriber_count': channel.subscriber_count,
+                'video_count': channel.video_count,
+                'moderators': list(channel.moderators),
+                'tags': list(channel.tags),
+                'channel_class': type(channel).__name__
+            }
+
