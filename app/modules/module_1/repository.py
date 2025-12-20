@@ -10,7 +10,7 @@ class UserRepository:
     # Kullanıcı veri erişim sınıfı - kullanıcı CRUD işlemleri için
 
     def __init__(self, data_file: str = "users.json"):
-        print(f"System: Initializing UserRepository with data file: {data_file}")
+        print(f"System >> Baslatildi UserRepository veri dosyalariyla: {data_file}")
 
         self.__data_file = data_file  # Private attribute
         self.__users = {}  # Private attribute - user_id -> BaseUser
@@ -22,10 +22,10 @@ class UserRepository:
         if os.path.exists(self.__data_file):
             self._load_from_file()
         else:
-            print(f"System: Data file {data_file} does not exist, starting with empty repository")
+            print(f"System >> Veri dosyasi {data_file} boş repodan başlayarak mevcut değil")
             self._initialize_empty_repository()
 
-        print(f"System: UserRepository initialized with {len(self.__users)} users")
+        print(f"System >> UserRepository baslatildi birlikte {len(self.__users)} users")
 
     def _initialize_empty_repository(self):
         # Boş repository başlat
@@ -33,7 +33,7 @@ class UserRepository:
         self.__username_index = {}
         self.__email_index = {}
         self.__last_modified = datetime.now()
-        print(f"System: Empty repository initialized")
+        print(f"System >> Bos repository baslatildi")
 
     def _load_from_file(self):
         # Dosyadan kullanıcıları yükle
@@ -48,10 +48,10 @@ class UserRepository:
                     self.__users[user_id] = user
                     self._update_indexes(user)
 
-            print(f"System: Successfully loaded {len(self.__users)} users from file")
+            print(f"System >> Yuklendi (basarili) {len(self.__users)} kullanici dosyadan")
 
         except Exception as e:
-            print(f"System: Error loading from file: {e}")
+            print(f"System >> Dosyadan yükleme hatası: {e}")
             self._initialize_empty_repository()
 
     def _save_to_file(self):
@@ -66,10 +66,10 @@ class UserRepository:
             with open(self.__data_file, 'w', encoding='utf-8') as file:
                 json.dump(data, file, indent=2, ensure_ascii=False)
 
-            print(f"System: Successfully saved {len(users_data)} users to file")
+            print(f"System >> Kaydedildi (basarili) {len(users_data)} kullanici dosyaya")
 
         except Exception as e:
-            print(f"System: Error saving to file: {e}")
+            print(f"System >> Dosyaya kaydedilirken hata oluştu: {e}")
             raise
 
     def _serialize_user(self, user: BaseUser) -> Dict[str, Any]:
@@ -110,7 +110,7 @@ class UserRepository:
             return user
 
         except Exception as e:
-            print(f"System: Error deserializing user: {e}")
+            print(f"System >> Kullanıcı seri durumdan çıkarılırken hata oluştu: {e}")
             return None
 
     def _update_indexes(self, user: BaseUser):
@@ -118,7 +118,7 @@ class UserRepository:
         self.__email_index[user.email.lower()] = user.user_id
 
     def create_user(self, user: BaseUser) -> BaseUser:
-        print(f"System: Creating user {user.user_id} with username '{user.username}'")
+        print(f"System >> Kullanici olusturma {user.user_id} username ile  '{user.username}'")
 
         if not isinstance(user, BaseUser):
             raise TypeError("User must be instance of BaseUser")
@@ -141,10 +141,10 @@ class UserRepository:
 
         try:
             self._save_to_file()
-            print(f"System: User {user.user_id} created and saved successfully")
+            print(f"System >> Kullanici {user.user_id} olusturuldu ve kaydedildi (basarili)")
         except Exception as e:
             del self.__users[user.user_id]
-            print(f"System: Error saving user, rolled back: {e}")
+            print(f"System >> Kullanıcı kaydedilirken hata oluştu, geri alındı: {e}")
             raise
 
         return user
@@ -210,9 +210,9 @@ class UserRepository:
 
             try:
                 repo.create_user(admin_user)
-                print(f"System: Default admin user created successfully")
+                print(f"System >> Varsayilan yonetici kullanicisi basariyla olusturuldu")
             except Exception as e:
-                print(f"System: Error creating default admin: {e}")
+                print(f"System >> Error creating default admin: {e}")
 
         return repo
 
@@ -229,7 +229,7 @@ class ChannelRepository:
     # Kanal veri erişim sınıfı - kanal CRUD işlemleri için
 
     def __init__(self, data_file: str = "channels.json"):
-        print(f"System: Initializing ChannelRepository with data file: {data_file}")
+        print(f"System >> ChannelRepository'nin veri dosyasıyla başlatılması: {data_file}")
 
         self.__data_file = data_file  # Private attribute
         self.__channels = {}  # Private attribute - channel_id -> BaseChannel
@@ -241,10 +241,10 @@ class ChannelRepository:
         if os.path.exists(self.__data_file):
             self._load_from_file()
         else:
-            print(f"System: Data file {data_file} does not exist, starting with empty repository")
+            print(f"System >> Veri dosyasi {data_file} mevcut degil, boş depoyla başlayarak")
             self._initialize_empty_repository()
 
-        print(f"System: ChannelRepository initialized with {len(self.__channels)} channels")
+        print(f"System >> ChannelRepository initialized with {len(self.__channels)} channels")
 
     def _initialize_empty_repository(self):
         # Boş repository başlat
@@ -252,7 +252,7 @@ class ChannelRepository:
         self.__owner_index = {}
         self.__type_index = {}
         self.__last_modified = datetime.now()
-        print(f"System: Empty channel repository initialized")
+        print(f"System >> Boş kanal deposu başlatıldı")
 
     def _load_from_file(self):
         # Dosyadan kanalları yükle
@@ -267,10 +267,10 @@ class ChannelRepository:
                     self.__channels[channel_id] = channel
                     self._update_indexes(channel)
 
-            print(f"System: Successfully loaded {len(self.__channels)} channels from file")
+            print(f"System >> Yüklendi (basariyla ){len(self.__channels)} kanallar dosyaya")
 
         except Exception as e:
-            print(f"System: Error loading channels from file: {e}")
+            print(f"System >> Dosyadan kanallar yüklenirken hata oluştu: {e}")
             self._initialize_empty_repository()
 
     def _save_to_file(self):
@@ -285,10 +285,10 @@ class ChannelRepository:
             with open(self.__data_file, 'w', encoding='utf-8') as file:
                 json.dump(data, file, indent=2, ensure_ascii=False)
 
-            print(f"System: Successfully saved {len(channels_data)} channels to file")
+            print(f"System >> Kaydedildi (basarili) {len(channels_data)} kanallar dosyaya")
 
         except Exception as e:
-            print(f"System: Error saving channels to file: {e}")
+            print(f"System >> Kanallar dosyaya kaydedilirken hata oluştu: {e}")
             raise
 
     def _serialize_channel(self, channel: BaseChannel) -> Dict[str, Any]:
@@ -347,7 +347,7 @@ class ChannelRepository:
             return channel
 
         except Exception as e:
-            print(f"System: Error deserializing channel: {e}")
+            print(f"System >> Kanal seri durumdan çıkarılırken hata oluştu: {e}")
             return None
 
     def _update_indexes(self, channel: BaseChannel):
@@ -364,7 +364,7 @@ class ChannelRepository:
 
     def create_channel(self, channel: BaseChannel) -> BaseChannel:
         # Yeni kanal oluştur
-        print(f"System: Creating channel {channel.channel_id} with name '{channel.name}'")
+        print(f"System >> Kanal olusturuluyor {channel.channel_id} adiyla '{channel.name}'")
 
         if not isinstance(channel, BaseChannel):
             raise TypeError("Channel must be instance of BaseChannel")
@@ -383,10 +383,10 @@ class ChannelRepository:
 
         try:
             self._save_to_file()
-            print(f"System: Channel {channel.channel_id} created and saved successfully")
+            print(f"System >> Kanal {channel.channel_id} başarıyla oluşturuldu ve kaydedildi")
         except Exception as e:
             del self.__channels[channel.channel_id]
-            print(f"System: Error saving channel, rolled back: {e}")
+            print(f"System >> Kanal kaydedilirken hata oluştu, geri alındı: {e}")
             raise
 
         return channel

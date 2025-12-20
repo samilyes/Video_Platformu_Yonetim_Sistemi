@@ -17,7 +17,7 @@ try:
     )
     from repository import UserRepository, ChannelRepository
 
-    print("System: All modules imported successfully for demo")
+    print("System >> Repo icin tum moduller aktarıldı (basarili)")
 except ImportError as e:
     print(f"System >> Import hatası demoda : {e}")
     sys.exit(1)
@@ -120,7 +120,7 @@ def demonstrate_polymorphism(channels: List[BaseChannel], users: List[BaseUser])
         channel_type = type(channel).__name__
         access_level = channel.get_access_level()
         print(f"{i}. {channel_type}: '{channel.name}'")
-        print(f"   Access Level: {access_level}")
+        print(f"Erisim seviyesi: {access_level}")
         print()
     print("\n2. POLYMORPHIC METHOD CAGRILDI - can_user_access()")
     print("-" * 50)
@@ -143,15 +143,15 @@ def demonstrate_polymorphism(channels: List[BaseChannel], users: List[BaseUser])
     print("\n3. POLYMORPHIC DAVRANIS - Kanal Bilgisi")
     print("-" * 50)
     for channel in channels:
-        print(f"\nChannel: {type(channel).__name__}")
+        print(f"\nKanal: {type(channel).__name__}")
         print(f"  ID: {channel.channel_id}")
-        print(f"  Name: {channel.name}")
-        print(f"  Owner: {channel.owner_id}")
-        print(f"  Type: {channel.channel_type.value}")
-        print(f"  Status: {channel.status.value}")
-        print(f"  Subscribers: {channel.subscriber_count}")
-        print(f"  Videos: {channel.video_count}")
-        print(f"  Created: {channel.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"  Isım: {channel.name}")
+        print(f"  Sahip : {channel.owner_id}")
+        print(f"  Tipi: {channel.channel_type.value}")
+        print(f"  Durum : {channel.status.value}")
+        print(f"  Abone: {channel.subscriber_count}")
+        print(f"  Video : {channel.video_count}")
+        print(f"  Olusturuldu : {channel.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
 
 
 def demonstrate_encapsulation(channels: List[BaseChannel]):
@@ -163,29 +163,29 @@ def demonstrate_encapsulation(channels: List[BaseChannel]):
         print(f"\n{channel_type}: {channel.name}")
 
         if isinstance(channel, PersonalChannel):
-            print(f"  Max Videos Per Day: {channel.max_videos_per_day}")
+            print(f"Gunluk max video: {channel.max_videos_per_day}")
             channel.max_videos_per_day = 7
-            print(f"  Updated Max Videos Per Day: {channel.max_videos_per_day}")
+            print(f"Gunluk max video (guncellendi): {channel.max_videos_per_day}")
             channel.add_hobby("gaming")
-            print(f"  Current hobbies: {channel.get_hobbies()}")
+            print(f"Mevcut hobi: {channel.get_hobbies()}")
         elif isinstance(channel, BrandChannel):
-            print(f"  Company Name: '{channel.company_name}'")
+            print(f"  Sirket adi: '{channel.company_name}'")
             print(f"  Brand Verified: {channel.brand_verified}")
             channel.company_name = "TechCorp Industries Ltd."
             channel.marketing_budget = 50000.0
-            print(f"  Updated Company Name: {channel.company_name}")
+            print(f"  Sirket adi (guncellendi): {channel.company_name}")
         elif isinstance(channel, KidsChannel):
-            print(f"  Age Range: {channel.min_age}-{channel.max_age}")
-            print(f"  Parental Control: {channel.parental_control_enabled}")
+            print(f"  Yas araligi : {channel.min_age}-{channel.max_age}")
+            print(f"  Ebeveyn Control: {channel.parental_control_enabled}")
             channel.min_age = 4
             channel.max_age = 9
-            print(f"  Updated Age Range: {channel.min_age}-{channel.max_age}")
+            print(f"  Yas araligi (guncellendi): {channel.min_age}-{channel.max_age}")
 
 
 def demonstrate_inheritance(channels: List[BaseChannel]):
     # Kalıtım gösterimi
-    print_section_header("INHERITANCE DEMONSTRATION")
-    print("\n1. INHERITED METHODS FROM BaseChannel")
+    print_section_header("MİRAS GÖSTERİMİ")
+    print("\n1. BaseChannel'dan devralınan yöntemler")
     print("-" * 50)
 
     for channel in channels:
@@ -193,13 +193,13 @@ def demonstrate_inheritance(channels: List[BaseChannel]):
         print(f"\n{channel_type}: {channel.name}")
         # BaseChannel'dan kalıtılan metodlar
         print(f"  Channel ID: {channel.channel_id}")
-        print(f"  Status: {channel.status.value}")
-        print(f"  Subscriber Count: {channel.subscriber_count}")
+        print(f"  Durum: {channel.status.value}")
+        print(f"  Abone sayisi : {channel.subscriber_count}")
         # Inherited method - add_moderator
         old_moderators = len(channel.moderators)
         channel.add_moderator("test_moderator_001")
         new_moderators = len(channel.moderators)
-        print(f"  Moderators: {old_moderators} -> {new_moderators}")
+        print(f"  Moderatorler: {old_moderators} -> {new_moderators}")
         # Inherited attribute - tags
         channel.tags.append("demo")
         channel.tags.append("educational")
@@ -215,25 +215,25 @@ def demonstrate_inheritance(channels: List[BaseChannel]):
 
 def demonstrate_static_and_class_methods():
     # Statik ve sınıf metodları gösterimi
-    print_section_header("STATIC AND CLASS METHODS DEMONSTRATION")
+    print_section_header("STATIC AND CLASS METHODS GOSTERİMİ ")
     # Static methods
     categories = PersonalChannel.get_recommended_categories()
-    print(f"PersonalChannel Categories: {categories}")
+    print(f"PersonalChannel Kategori: {categories}")
     industries = BrandChannel.get_valid_industries()
     print(f"BrandChannel Industries: {industries}")
     roi = BrandChannel.calculate_campaign_roi(1000, 1500)
     print(f"Campaign ROI: {roi}%")
     kids_categories = KidsChannel.get_valid_content_categories()
-    print(f"KidsChannel Categories: {kids_categories}")
+    print(f"KidsChannel Kategori: {kids_categories}")
     # Class methods
     try:
         default_personal = PersonalChannel.create_default_personal_channel("demo_user_002", "DemoUser")
-        print(f"Default PersonalChannel: {default_personal.name}")
+        print(f"Varsayilan PersonalChannel: {default_personal.name}")
         verified_brand = BrandChannel.create_verified_brand_channel("demo_brand_002", "Demo Corp",
                                                                     "contact@democorp.com")
         print(f"Onaylanmis BrandChannel: {verified_brand.name}")
         educational_kids = KidsChannel.create_educational_kids_channel("demo_edu_002", "mathematics", (6, 10))
-        print(f"Educational KidsChannel: {educational_kids.name}")
+        print(f"Egitimsel KidsChannel: {educational_kids.name}")
     except Exception as e:
         print(f"HATA kanal olusturulurken: {e}")
 
@@ -245,7 +245,7 @@ def demonstrate_exception_handling():
     try:
         PersonalChannel("invalid_001", "x", "Valid description", "user_001")
     except InvalidNameError as e:
-        print(f"✓ InvalidNameError caught: {e}")
+        print(f"InvalidNameError yakalandi : {e}")
     # Property validation test
     try:
         test_brand = BrandChannel(
@@ -254,31 +254,31 @@ def demonstrate_exception_handling():
         )
         test_brand.marketing_budget = -1000  # Invalid: negative budget
     except ValueError as e:
-        print(f"✓ ValueError caught: {e}")
+        print(f"✓ ValueError yakalandi: {e}")
     # Validation tests
     tests = [("Empty name", lambda: PersonalChannel("test", "", "Valid desc", "user")),
              ("Short desc", lambda: BrandChannel("test", "Valid Name", "Short", "user"))]
     for test_name, test_func in tests:
         try:
             test_func()
-            print(f"✗ {test_name}: No exception raised")
+            print(f"✗ {test_name}: Kod calisti hata yok")
         except Exception as e:
             print(f"✓ {test_name}: {type(e).__name__}")
 
 
 def main():
-    print("=" * 60)
-    print(" CHANNEL MANAGEMENT MODULE - POLYMORPHISM DEMO ".center(60, "="))
-    print("=" * 60)
-    print(f"\nSystem: Demo started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(" " * 60)
+    print(" CHANNEL MANAGEMENT MODULE - POLI DEMO ".center(60, "="))
+    print(" " * 60)
+    print(f"\nSystem >> Demo basladi {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     try:
         users = create_sample_users()
         if not users:
-            print("System: Failed to create sample users, exiting demo")
+            print("System >> >> sample users olusturma hatasi --> mevcut")
             return 1
         channels = create_sample_channels()
         if not channels:
-            print("System: Failed to create sample channels, exiting demo")
+            print("System >>   sample channels olusturma hatasi --> mevcut")
             return 1
         demonstrate_polymorphism(channels, users)
         demonstrate_encapsulation(channels)
@@ -286,21 +286,21 @@ def main():
         demonstrate_static_and_class_methods()
         demonstrate_exception_handling()
         # Demo tamamlandı
-        print_section_header("DEMO COMPLETED SUCCESSFULLY")
-        print(f"\nSystem: Demo completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print("System: All OOP principles demonstrated successfully!")
-        print("\nKey Concepts Demonstrated:")
-        print("  ✓ Polymorphism - Same methods, different behaviors")
-        print("  ✓ Encapsulation - Private attributes with property access")
-        print("  ✓ Inheritance - Shared functionality from BaseChannel")
-        print("  ✓ Abstraction - Abstract methods implemented differently")
-        print("  ✓ Static Methods - Utility functions without instance")
-        print("  ✓ Class Methods - Factory methods for object creation")
-        print("  ✓ Exception Handling - Custom exceptions and validation")
+        print_section_header("DEMO BASARIYLA TAMAMLANDI")
+        print(f"\nSystem >> Demo tamamlandi {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("System >> Tum OOP ilkeleri basarıyla gosterildi!")
+        print("\nGosterilen Temel Kavramlar:")
+        print("  ✓ Polymorphism - Ayni methods, farkli davranislar")
+        print("  ✓ Encapsulation - Private ozellik  property erisimi ile")
+        print("  ✓ Inheritance - BaseChannel'dan paylasilan islevsellik")
+        print("  ✓ Abstraction - Farklı sekilde uygulanan soyut yontemler")
+        print("  ✓ Static Methods - Utility func orneksiz")
+        print("  ✓ Class Methods - Nesne oluşturma için fabrika yöntemleri")
+        print("  ✓ Exception Handling - Ozel istisnalar ve dogrulama")
         return 0
     except Exception as e:
-        print(f"\nSystem: Critical error during demo: {e}")
-        print("System: Demo terminated unexpectedly")
+        print(f"\nSystem >> demo calisirken kritik hata: {e}")
+        print("System >> Demo beklenmedik bir sekilde sonlandirildi")
         return 1
 
 

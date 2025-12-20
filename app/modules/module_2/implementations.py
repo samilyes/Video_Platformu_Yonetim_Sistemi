@@ -21,7 +21,7 @@ from .base import (
     VideoMetadata
 )
 from .repository import VideoRepository
-
+from app.modules.module_1.implementations import KidsChannel
 # Logger ayarı
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("VideoModule")
@@ -324,34 +324,42 @@ class VideoService:
         logger.info("Yükleme tamamlandı.")
         return True
 
-    def process_video(self, video_id: str):
+    def process_video(self, video_id: str, channel_obj=None):
         """
-        Video işleme
-        Durum: Uploaded -> Processing -> Published/Blocked
+        Video işleme ve Modüller Arası Denetim (Entegrasyon)
         """
+        # Circular Import'u önlemek için metod içinde import yapıyoruz
+        from app.modules.module_1.implementations import KidsChannel
+
         video = self.repository.get_by_id(video_id)
-        
+
         try:
             video.transition_status(VideoStatus.PROCESSING)
-            logger.info(f"İşleniyor: {video.title} (Codec: H264, Bitrate: Variable)")
-            self._simulate_transcoding(video)
-            
-            is_successful = True 
-            
-            if is_successful:
-                if not video.validate_content_policy():
-                     video.transition_status(VideoStatus.BLOCKED)
-                     logger.warning(f"İşleme sırasında uygunsuz içerik tespit edildi: {video.video_id}")
-                else:
-                    video.transition_status(VideoStatus.PUBLISHED)
-                    logger.info(f"Yayınlandı: {video.title}")
+            logger.info(f"İşleniyor: {video.title}...")
+
+            # --- MODÜLLER ARASI İLETİŞİM (DENETİM) ---
+            # Eğer kanal bir Çocuk Kanalı ise ve video 10 dk'dan uzunsa ENGELLE
+            if isinstance(channel_obj, KidsChannel) and video.duration_seconds > 600:
+                video.transition_status(VideoStatus.BLOCKED)
+                logger.warning(f"!!! ENTEGRASYON UYARISI !!!")
+                logger.warning(f"Kanal Tipi: {type(channel_obj).__name__} | Kanal Adı: {channel_obj.name}")
+                logger.warning(f"Hata: Çocuk kanalına {video.duration_seconds} saniyelik uzun video yüklenemez!")
+                self.repository.save(video)
+                return  # İşlemi burada kes ve yayınlama
+            # ------------------------------------------
+
+            # Normal İçerik Politikası Kontrolü
+            if not video.validate_content_policy():
+                video.transition_status(VideoStatus.BLOCKED)
+                logger.warning(f"İşleme sırasında uygunsuz içerik: {video.video_id}")
             else:
-                 raise VideoProcessingError("Transcode hatası!")
-                 
+                video.transition_status(VideoStatus.PUBLISHED)
+                logger.info(f"Yayınlandı: {video.title}")
+
             self.repository.save(video)
-            
-        except InvalidVideoStatusError as e:
-            logger.error(f"Durum hatası: {e}")
+
+        except Exception as e:
+            logger.error(f"İşlem hatası: {e}")
             raise
 
     def _simulate_transcoding(self, video: VideoBase):
@@ -403,7 +411,8 @@ class VideoService:
             "monetization_score": video.calculate_monetization_potential(),
             "type": video.get_video_type()
         }
-    
+
+
     def bulk_upload_simulation(self, uploads: List[Dict[str, Any]]):
         """
         Toplu video yükleme

@@ -19,7 +19,6 @@ class BrandVerificationError(Exception): pass
 
 class SubscriptionRequiredError(Exception): pass
 
-
 class PersonalChannel(BaseChannel):
 
     def __init__(self, channel_id, name, description, owner_id):
@@ -29,17 +28,104 @@ class PersonalChannel(BaseChannel):
         self._max_videos_per_day = 5
         self._hobbies = []
 
-    def get_access_level(self):
+    def get_access_level(self, repo=None):
+        return f"{type(self).__name__}_level"
+
+    def validate_content_policy(self, content_data: dict) -> bool:
+        return True
+
+    # KRİTİK DEĞİŞİKLİK: (self, repo=None) parametresini ekledik
+    def get_channel_statistics(self, repo=None) -> dict:
+        """
+        Modül 2'den canlı veri çekerek kanal istatistiklerini hesaplar.
+        """
+        print(f"DEBUG: {self.name} istatistikleri hesaplanıyor, repo geldi mi?: {repo is not None}")
+        # Eğer dışarıdan bir repo gönderilmediyse, yeni bir tane oluştur (Failsafe)
+        if repo is None:
+            from app.modules.module_2.repository import VideoRepository
+            repo = VideoRepository()
+
+        # Artık videoların kayıtlı olduğu GERÇEK repo üzerinden arama yapıyoruz
+        my_videos = repo.find_by_channel(self.channel_id)
+
+        # Videoların gelir puanlarını toplayalım
+        total_potential = sum([v.calculate_monetization_potential() for v in my_videos])
+
+        # Yayınlanmış videoların sayısını bulalım
+        from app.modules.module_2.base import VideoStatus
+        published_count = len([v for v in my_videos if v.status == VideoStatus.PUBLISHED])
+
+        return {
+            "kanal_id": self.channel_id,
+            "abone_sayisi": self.subscriber_count,
+            "toplam_video": len(my_videos),
+            "yayinlanan_video": published_count,
+            "toplam_gelir_potansiyeli": round(total_potential, 2),
+            "erisim": self.get_access_level()
+        }
+
+    @property
+    def max_videos_per_day(self):
+        return self._max_videos_per_day
+
+    @max_videos_per_day.setter
+    def max_videos_per_day(self, value):
+        self._max_videos_per_day = value
+
+    def add_hobby(self, hobby):
+        self._hobbies.append(hobby)
+        return True
+
+    def get_hobbies(self):
+        return self._hobbies
+
+    @staticmethod
+    def get_recommended_categories():
+        return ["vlog", "lifestyle", "gaming"]
+
+    @classmethod
+    def create_default_personal_channel(cls, owner_id, owner_name):
+        return cls(f"personal_{owner_id}", f"{owner_name}'s Channel", "Default description", owner_id)
+    def __init__(self, channel_id, name, description, owner_id):
+        if len(name) < 5:
+            raise InvalidNameError(f"Channel name '{name}' is too short")
+        super().__init__(channel_id, name, description, owner_id, ChannelType.PERSONAL)
+        self._max_videos_per_day = 5
+        self._hobbies = []
+
+    def get_access_level(self,repo=None):
         return f"{type(self).__name__}_level"
 
     def validate_content_policy(self, content_data: dict) -> bool:
         return True
 
     def get_channel_statistics(self) -> dict:
+        """
+        Modül 2'den canlı veri çekerek kanal istatistiklerini hesaplar.
+        """
+        # Modül 2'deki veritabanı (Repo) sınıfını metod içinde import ediyoruz
+        from app.modules.module_2.repository import VideoRepository
+
+        # Arkadaşının repo'sunu oluşturuyoruz
+        repo = VideoRepository()
+
+        # Bu kanala ait videoları repo üzerinden buluyoruz (Modül 2'nin gücü)
+        my_videos = repo.find_by_channel(self.channel_id)
+
+        # Videoların gelir puanlarını toplayalım
+        total_potential = sum([v.calculate_monetization_potential() for v in my_videos])
+
+        # Yayınlanmış videoların sayısını bulalım
+        from app.modules.module_2.base import VideoStatus
+        published_count = len([v for v in my_videos if v.status == VideoStatus.PUBLISHED])
+
         return {
-            "channel_id": self.channel_id,
-            "subscribers": self.subscriber_count,
-            "videos": self.video_count
+            "kanal_id": self.channel_id,
+            "abone_sayisi": self.subscriber_count,
+            "toplam_video": len(my_videos),  # Canlı veri
+            "yayinlanan_video": published_count,  # Canlı veri
+            "toplam_gelir_potansiyeli": round(total_potential, 2),  # Modül 2'den hesaplanan veri
+            "erisim": self.get_access_level()
         }
 
     @property
@@ -84,11 +170,28 @@ class BrandChannel(BaseChannel):
         # Reklam politikasına uygunluk kontrolü (simülasyon)
         return True
 
-    def get_channel_statistics(self) -> dict:
+    # app/modules/module_1/implementations.py içerisinde
+
+    # Eski hali: def get_channel_statistics(self):
+    # Yeni hali:
+    def get_channel_statistics(self, repo=None):  # repo=None eklendi
+        from app.modules.module_2.base import VideoStatus
+
+        if repo:
+            my_videos = repo.find_by_channel(self.channel_id)
+            total_potential = sum([v.calculate_monetization_potential() for v in my_videos])
+            published_count = len([v for v in my_videos if v.status == VideoStatus.PUBLISHED])
+            video_len = len(my_videos)
+        else:
+            total_potential = 0
+            published_count = 0
+            video_len = 0
+
         return {
-            "tip": "Marka",
-            "butce": self.marketing_budget,
-            "etkilesim": self.subscriber_count * 1.5
+            "kanal_id": self.channel_id,
+            "toplam_video": video_len,
+            "yayinlanan_video": published_count,
+            "toplam_gelir_potansiyeli": round(total_potential, 2)
         }
 
     def add_target_audience(self, audience):
@@ -162,7 +265,7 @@ class KidsChannel(BaseChannel):
         # Çocuklar için sadece 'G' reytingli içeriklere izin ver
         return content_data.get("rating") == "G" if "rating" in content_data else True
 
-    def get_channel_statistics(self) -> dict:
+    def get_channel_statistics(self,repo=None) -> dict:
         return {
             "tip": "Cocuk",
             "ebeveyn_kontrolu": self.parental_control_enabled,
