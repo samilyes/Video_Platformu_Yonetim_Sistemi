@@ -125,7 +125,6 @@ class VideoBase(ABC):
 
     @title.setter
     def title(self, new_title: str):
-        # Başlık kotrolü
         if not new_title:
             raise ValueError("Başlık boş bırakılamaz.")
         self._title = new_title
@@ -148,7 +147,6 @@ class VideoBase(ABC):
 
     @visibility.setter
     def visibility(self, new_visibility: VideoVisibility):
-        # Tip kontrolü yapma
         if not isinstance(new_visibility, VideoVisibility):
             raise InvalidVisibilityError(f"Hatalı görünürlük tipi: {new_visibility}")
         self._visibility = new_visibility
@@ -358,8 +356,6 @@ def generate_video_slug(title: str) -> str:
     
     # Alfanümerik olmayan karakterleri sil (boşluk ve tire hariç)
     slug = re.sub(r'[^a-z0-9\s-]', '', slug)
-    
-    # Boşlukları tireye çevir
     slug = re.sub(r'\s+', '-', slug)
     
     # Max 50 karakter
