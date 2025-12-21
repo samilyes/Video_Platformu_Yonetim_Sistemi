@@ -379,14 +379,90 @@ def run_all_tests():
         all_results.append(("Status & Category", new_req_result))
         # --------------------------------
 
+        # 7. Yeni Davraniş Testleri (Ek)
+        extra_result = test_additional_behaviors()
+        all_results.append(("Additional Behaviors", extra_result))
+
     except Exception as e:
         print(f"\nSystem >> Test yurutulurken kritik hata : {e}")
         return 1
 
-    # ... (Geri kalan raporlama kodları aynı kalıyor)
     else:
         print(f"System >> tum testler tamamlandı")
         return 0
+
+
+# Yeni davranis testleri: PersonalChannel'in repo entegrasyonu ve BaseChannel davranışları
+
+def test_additional_behaviors():
+    print_test_header("EK DAVRANIS TESTLERI")
+    result = TestResult()
+
+    try:
+        # 1) PersonalChannel.get_channel_statistics(repo) dis bagimli repo ile calisir
+        class FakeVideo:
+            def __init__(self, status, potential):
+                self.status = status
+                self._p = potential
+
+            def calculate_monetization_potential(self):
+                return self._p
+
+        class FakeVideoRepo:
+            def __init__(self, videos):
+                self._videos = videos
+
+            def find_by_channel(self, channel_id):
+                return list(self._videos)
+
+        # VideoStatus'i import ederek published sayim kontrolu yapilacak
+        from app.modules.module_2.base import VideoStatus
+        vids = [
+            FakeVideo(VideoStatus.PUBLISHED, 10.2),
+            FakeVideo(VideoStatus.UPLOADED, 2.3),
+            FakeVideo(VideoStatus.PUBLISHED, 7.5),
+        ]
+        repo = FakeVideoRepo(vids)
+        ch = PersonalChannel("pc_stat_01", "Stats Channel", "desc long enough", "owner_x")
+        stats = ch.get_channel_statistics(repo=repo)
+        result.assert_equal(stats["toplam_video"], 3, "Repo uzerinden toplam video sayisi dogru")
+        result.assert_equal(stats["yayinlanan_video"], 2, "Yayinlanan video sayisi dogru")
+        result.assert_equal(stats["toplam_gelir_potansiyeli"], round(10.2+2.3+7.5, 2), "Gelir potansiyeli dogru")
+
+        # 2) BrandChannel.get_channel_statistics(repo=None) default durumda sifirlar dondurur
+        bch = BrandChannel("bc_stat_01", "Brand Ch", "desc long enough", "owner_b")
+        bstats = bch.get_channel_statistics()
+        result.assert_equal(bstats["toplam_video"], 0, "Brand stats default video=0")
+        result.assert_equal(bstats["yayinlanan_video"], 0, "Brand stats default yayinlanan=0")
+        result.assert_equal(bstats["toplam_gelir_potansiyeli"], 0, "Brand stats default gelir=0")
+
+        # 3) BaseChannel.change_status updated_at'i gunceller
+        old_time = ch.updated_at
+        ch.change_status(ChannelStatus.SUSPENDED)
+        result.assert_true(ch.updated_at >= old_time and ch.status == ChannelStatus.SUSPENDED,
+                           "change_status updated_at ve status gunceller")
+
+        # 4) BaseChannel.can_user_access davranisi
+        # owner her zaman erisir
+        result.assert_true(ch.can_user_access("owner_x", UserRole.VIEWER), "Sahip erisebilir")
+        # admin her zaman erisir
+        result.assert_true(ch.can_user_access("anyone", UserRole.ADMIN), "Admin erisebilir")
+        # aktif degilse normal kullanici erisemez
+        ch.change_status(ChannelStatus.SUSPENDED)
+        result.assert_true(not ch.can_user_access("u1", UserRole.VIEWER), "Askida kanala viewer erisemez")
+
+        # 5) BaseChannel.increment_video_count sayaç ve updated_at'i gunceller
+        before_count = ch.video_count
+        prev_update = ch.updated_at
+        ch.increment_video_count()
+        result.assert_equal(ch.video_count, before_count + 1, "Video sayaci artar")
+        result.assert_true(ch.updated_at >= prev_update, "increment_video_count updated_at'i gunceller")
+
+    except Exception as e:
+        result.assert_true(False, f"Ek davranis testleri hatasi: {e}")
+
+    result.print_summary()
+    return result
 
 
 if __name__ == "__main__":

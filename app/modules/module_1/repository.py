@@ -1,3 +1,4 @@
+# commit 5
 import json
 import os
 from typing import List, Optional, Dict, Any
@@ -113,6 +114,10 @@ class UserRepository:
             print(f"System >> Kullanıcı seri durumdan çıkarılırken hata oluştu: {e}")
             return None
 
+
+# commit 5.gun
+
+
     def _update_indexes(self, user: BaseUser):
         self.__username_index[user.username.lower()] = user.user_id
         self.__email_index[user.email.lower()] = user.user_id
@@ -224,6 +229,7 @@ class UserRepository:
     def validate_email(email: str) -> bool:
         return (isinstance(email, str) and email.strip() and '@' in email and '.' in email.split('@')[1])
 
+# commit 6
 
 class ChannelRepository:
     # Kanal veri erişim sınıfı - kanal CRUD işlemleri için

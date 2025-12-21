@@ -64,6 +64,9 @@ class ViewerUser(BaseUser):
         super().__init__(user_id, username, email, password, role)
 
 
+# commit gun 2
+
+
 class BaseChannel(ABC):
     def __init__(self, channel_id, name, description, owner_id, channel_type, category="other"):
         self.channel_id = channel_id

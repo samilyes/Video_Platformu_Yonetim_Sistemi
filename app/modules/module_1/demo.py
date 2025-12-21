@@ -1,3 +1,5 @@
+# commit 6 devamı
+
 # kanal türlerinin polimorfik davranışlarını gösterir.
 import sys
 import os
@@ -153,6 +155,7 @@ def demonstrate_polymorphism(channels: List[BaseChannel], users: List[BaseUser])
         print(f"  Video : {channel.video_count}")
         print(f"  Olusturuldu : {channel.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
 
+# commit 7
 
 def demonstrate_encapsulation(channels: List[BaseChannel]):
     # Kapsülleme gösterimi

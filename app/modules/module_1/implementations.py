@@ -1,7 +1,7 @@
 from .base import BaseChannel, ChannelType, UserRole
 
 
-# Exceptions
+# --- Exceptions ---
 class InvalidNameError(Exception): pass
 
 
@@ -19,8 +19,9 @@ class BrandVerificationError(Exception): pass
 
 class SubscriptionRequiredError(Exception): pass
 
-class PersonalChannel(BaseChannel):
 
+# --- PersonalChannel ---
+class PersonalChannel(BaseChannel):
     def __init__(self, channel_id, name, description, owner_id):
         if len(name) < 5:
             raise InvalidNameError(f"Channel name '{name}' is too short")
@@ -34,24 +35,16 @@ class PersonalChannel(BaseChannel):
     def validate_content_policy(self, content_data: dict) -> bool:
         return True
 
-    # KRİTİK DEĞİŞİKLİK: (self, repo=None) parametresini ekledik
     def get_channel_statistics(self, repo=None) -> dict:
-        """
-        Modül 2'den canlı veri çekerek kanal istatistiklerini hesaplar.
-        """
-        print(f"DEBUG: {self.name} istatistikleri hesaplanıyor, repo geldi mi?: {repo is not None}")
-        # Eğer dışarıdan bir repo gönderilmediyse, yeni bir tane oluştur (Failsafe)
+        """Modül 2'den canlı veri çekerek kanal istatistiklerini hesaplar."""
+        # 'repo' parametresi Test (Mocking) işlemleri için hayati önem taşır.
         if repo is None:
             from app.modules.module_2.repository import VideoRepository
             repo = VideoRepository()
 
-        # Artık videoların kayıtlı olduğu GERÇEK repo üzerinden arama yapıyoruz
         my_videos = repo.find_by_channel(self.channel_id)
-
-        # Videoların gelir puanlarını toplayalım
         total_potential = sum([v.calculate_monetization_potential() for v in my_videos])
 
-        # Yayınlanmış videoların sayısını bulalım
         from app.modules.module_2.base import VideoStatus
         published_count = len([v for v in my_videos if v.status == VideoStatus.PUBLISHED])
 
@@ -86,106 +79,56 @@ class PersonalChannel(BaseChannel):
     @classmethod
     def create_default_personal_channel(cls, owner_id, owner_name):
         return cls(f"personal_{owner_id}", f"{owner_name}'s Channel", "Default description", owner_id)
-    def __init__(self, channel_id, name, description, owner_id):
-        if len(name) < 5:
-            raise InvalidNameError(f"Channel name '{name}' is too short")
-        super().__init__(channel_id, name, description, owner_id, ChannelType.PERSONAL)
-        self._max_videos_per_day = 5
-        self._hobbies = []
-
-    def get_access_level(self,repo=None):
-        return f"{type(self).__name__}_level"
-
-    def validate_content_policy(self, content_data: dict) -> bool:
-        return True
-
-    def get_channel_statistics(self) -> dict:
-        """
-        Modül 2'den canlı veri çekerek kanal istatistiklerini hesaplar.
-        """
-        # Modül 2'deki veritabanı (Repo) sınıfını metod içinde import ediyoruz
-        from app.modules.module_2.repository import VideoRepository
-
-        # Arkadaşının repo'sunu oluşturuyoruz
-        repo = VideoRepository()
-
-        # Bu kanala ait videoları repo üzerinden buluyoruz (Modül 2'nin gücü)
-        my_videos = repo.find_by_channel(self.channel_id)
-
-        # Videoların gelir puanlarını toplayalım
-        total_potential = sum([v.calculate_monetization_potential() for v in my_videos])
-
-        # Yayınlanmış videoların sayısını bulalım
-        from app.modules.module_2.base import VideoStatus
-        published_count = len([v for v in my_videos if v.status == VideoStatus.PUBLISHED])
-
-        return {
-            "kanal_id": self.channel_id,
-            "abone_sayisi": self.subscriber_count,
-            "toplam_video": len(my_videos),  # Canlı veri
-            "yayinlanan_video": published_count,  # Canlı veri
-            "toplam_gelir_potansiyeli": round(total_potential, 2),  # Modül 2'den hesaplanan veri
-            "erisim": self.get_access_level()
-        }
-
-    @property
-    def max_videos_per_day(self):
-        return self._max_videos_per_day
-
-    @max_videos_per_day.setter
-    def max_videos_per_day(self, value):
-        self._max_videos_per_day = value
-
-    def add_hobby(self, hobby):
-        self._hobbies.append(hobby)
-        return True
-
-    def get_hobbies(self):
-        return self._hobbies
-
-    @staticmethod
-    def get_recommended_categories():
-        return ["vlog", "lifestyle", "gaming"]
-
-    @classmethod
-    def create_default_personal_channel(cls, owner_id, owner_name):
-        return cls(f"personal_{owner_id}", f"{owner_name}'s Channel", "Default description", owner_id)
 
 
+# --- BrandChannel ---
 class BrandChannel(BaseChannel):
-
     def __init__(self, channel_id, name, description, owner_id):
         super().__init__(channel_id, name, description, owner_id, ChannelType.BRAND)
         self.brand_verified = False
-        self.company_name = ""
-        self.marketing_budget = 0.0
+        self._company_name = ""  # Kapsüllendi
+        self._marketing_budget = 0.0  # Kapsüllendi
         self.industry = ""
         self.target_audience = []
+
+    @property
+    def marketing_budget(self):
+        return self._marketing_budget
+
+    @marketing_budget.setter
+    def marketing_budget(self, value):
+        if value < 0:
+            print("Sistem >> Uyarı: Bütçe negatif olamaz. İşlem reddedildi.")
+            return
+        self._marketing_budget = value
+
+    @property
+    def company_name(self):
+        return self._company_name
+
+    @company_name.setter
+    def company_name(self, value):
+        if not value or len(value.strip()) < 2:
+            print("Sistem >> Uyarı: Geçersiz şirket adı.")
+            return
+        self._company_name = value
 
     def set_industry(self, industry):
         self.industry = industry
         return True
 
     def validate_content_policy(self, content_data: dict) -> bool:
-        # Reklam politikasına uygunluk kontrolü (simülasyon)
         return True
 
-    # app/modules/module_1/implementations.py içerisinde
-
-    # Eski hali: def get_channel_statistics(self):
-    # Yeni hali:
-    def get_channel_statistics(self, repo=None):  # repo=None eklendi
+    def get_channel_statistics(self, repo=None):
         from app.modules.module_2.base import VideoStatus
-
         if repo:
             my_videos = repo.find_by_channel(self.channel_id)
             total_potential = sum([v.calculate_monetization_potential() for v in my_videos])
             published_count = len([v for v in my_videos if v.status == VideoStatus.PUBLISHED])
             video_len = len(my_videos)
         else:
-            total_potential = 0
-            published_count = 0
-            video_len = 0
+            total_potential = published_count = video_len = 0
 
         return {
             "kanal_id": self.channel_id,
@@ -217,15 +160,67 @@ class BrandChannel(BaseChannel):
         return "brand_corporate"
 
 
+# --- KidsChannel ---
 class KidsChannel(BaseChannel):
-
     def __init__(self, channel_id, name, description, owner_id):
         super().__init__(channel_id, name, description, owner_id, ChannelType.KIDS)
         self.parental_control_enabled = True
-        self.content_rating = "G"
-        self.min_age = 3
-        self.max_age = 12
+        self._content_rating = "G"  # Kapsüllendi
+        self._min_age = 3  # Kapsüllendi
+        self._max_age = 12  # Kapsüllendi
         self.educators = []
+
+    @property
+    def min_age(self):
+        return self._min_age
+
+    @min_age.setter
+    def min_age(self, value):
+        if value < 0: raise InvalidAgeRangeError("Yaş negatif olamaz.")
+        self._min_age = value
+
+    @property
+    def max_age(self):
+        return self._max_age
+
+    @max_age.setter
+    def max_age(self, value):
+        if value < self._min_age: raise InvalidAgeRangeError("Maksimum yaş minimumdan küçük olamaz.")
+        self._max_age = value
+
+    @property
+    def content_rating(self):
+        return self._content_rating
+
+    @content_rating.setter
+    def content_rating(self, value):
+        valid_ratings = ["G", "PG"]
+        if value not in valid_ratings:
+            raise ContentNotAllowedError(f"Çocuk kanalı için {value} reytingi uygun değil!")
+        self._content_rating = value
+
+    @staticmethod
+    def get_age_appropriate_screen_time(age):
+        # Yaşa göre önerilen günlük maksimum ekran süresini (dakika) döndürür.
+        if age < 2:
+            return 0
+        if age < 5:
+            return 60
+        return 120
+
+    @classmethod
+    def create_educational_kids_channel(cls, owner_id, subject, age_range):
+        # Eğitici bir çocuk kanalı oluşturmak için kullanılan yardımcı sınıf metodu.
+        channel_id = f"kids_edu_{owner_id}"
+        name = f"Kids Learning - {subject.capitalize()}"
+        description = f"Educational content for kids focusing on {subject}."
+
+        # Yeni kanalı oluşturuyoruz
+        channel = cls(channel_id, name, description, owner_id)
+        # Yaş aralığını set ediyoruz
+        channel.set_age_range(age_range[0], age_range[1])
+
+        return channel
 
     def set_age_range(self, min_age, max_age):
         self.min_age = min_age
@@ -233,14 +228,13 @@ class KidsChannel(BaseChannel):
         return True
 
     def get_age_range(self):
-        return (self.min_age, self.max_age)
+        return (self._min_age, self._max_age)
 
     def add_approved_educator(self, educator):
         self.educators.append(educator)
         return True
 
     def is_content_appropriate(self, rating, tags):
-        # Basic check
         if self.content_rating == "G" and rating != "G":
             return False
         return True
@@ -249,27 +243,15 @@ class KidsChannel(BaseChannel):
     def get_valid_content_categories():
         return ["education", "cartoons", "science", "music"]
 
-    @staticmethod
-    def get_age_appropriate_screen_time(age):
-        if age < 2: return 0
-        if age < 5: return 60
-        return 120
-
-    @classmethod
-    def create_educational_kids_channel(cls, owner_id, subject, age_range):
-        channel = cls(f"kids_{owner_id}", f"Kids {subject}", f"Educational channel about {subject}", owner_id)
-        channel.set_age_range(age_range[0], age_range[1])
-        return channel
-
     def validate_content_policy(self, content_data: dict) -> bool:
-        # Çocuklar için sadece 'G' reytingli içeriklere izin ver
         return content_data.get("rating") == "G" if "rating" in content_data else True
 
-    def get_channel_statistics(self,repo=None) -> dict:
+    def get_channel_statistics(self, repo=None) -> dict:
         return {
             "tip": "Cocuk",
             "ebeveyn_kontrolu": self.parental_control_enabled,
-            "yas_araligi": self.get_age_range()}
+            "yas_araligi": self.get_age_range()
+        }
 
     def get_access_level(self):
         return "kids_safe"
