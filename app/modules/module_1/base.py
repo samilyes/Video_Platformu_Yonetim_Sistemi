@@ -10,6 +10,37 @@ class UserRole(Enum):
     VIEWER = "viewer"
 
 
+class BaseUser:
+    def __init__(self, user_id, username, email, password, role):
+        self.user_id = user_id
+        self.username = username
+        self.__email = email
+        self.__password = password
+        self.role = role
+        self.created_at = datetime.now()
+        self.is_active = True
+
+    @property
+    def mail(self):
+        return self.__email
+
+    @mail.setter
+    def mail(self, value):
+        if "@" not in value:
+            raise ValueError(f"E mail geçersiz ! ")
+
+    @property
+    def password(self):
+        return self.__password
+
+    @password.setter
+    def password(self, value):
+        if "@" not in value:
+            raise ValueError( f"Yetersiz karakter ! ")
+        self.__password = value
+
+
+
 class ChannelType(Enum):
     PUBLIC = "public"
     PRIVATE = "private"
@@ -38,16 +69,6 @@ class DuplicateChannelException(Exception):
     pass
 
 
-class BaseUser:
-    def __init__(self, user_id, username, email, password, role):
-        self.user_id = user_id
-        self.username = username
-        self.email = email
-        self.password = password
-        self.role = role
-        self.created_at = datetime.now()
-        self.is_active = True
-
 
 class AdminUser(BaseUser):
     def __init__(self, user_id, username, email, password, role=UserRole.ADMIN):
@@ -62,9 +83,6 @@ class ContentCreatorUser(BaseUser):
 class ViewerUser(BaseUser):
     def __init__(self, user_id, username, email, password, role=UserRole.VIEWER):
         super().__init__(user_id, username, email, password, role)
-
-
-# commit gun 2
 
 
 class BaseChannel(ABC):
@@ -82,6 +100,8 @@ class BaseChannel(ABC):
         self.video_count = 0
         self.moderators = set()
         self.tags = []
+
+
 
     @abstractmethod
     def get_access_level(self) -> str:

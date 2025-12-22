@@ -1,313 +1,373 @@
-# commit 6 devamı
-
-# kanal türlerinin polimorfik davranışlarını gösterir.
-import sys
 import os
+import sys
 from datetime import datetime
-from typing import List
 
-# Modül import'ları
-try:
-    from base import (
-        BaseChannel, BaseUser, UserRole, ChannelType, ChannelStatus,
-        AdminUser, ContentCreatorUser, ViewerUser
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from app.modules.module_1.base import ChannelStatus, UserRole
+from app.modules.module_1.implementations import PersonalChannel, BrandChannel, KidsChannel
+from app.modules.module_1.repository import UserRepository, ChannelRepository
+
+
+class Cancelled(Exception):
+    pass
+
+
+def _raw(prompt: str) -> str:
+    return input(prompt).strip()
+
+
+def ask_required(label: str) -> str:
+    while True:
+        v = _raw(f"{label}: ")
+        if v.lower() == "iptal":
+            raise Cancelled()
+        if v:
+            return v
+        print("Boş bırakılamaz. (iptal yazabilirsiniz)")
+
+
+def ask_choice(label: str, options: dict[str, str]) -> str:
+    while True:
+        print(f"\n{label}")
+        for k, text in options.items():
+            print(f"  {k}) {text}")
+        v = _raw("Seçim: ")
+        if v.lower() == "iptal":
+            raise Cancelled()
+        if v in options:
+            return v
+        print("Hatalı seçim. (iptal yazabilirsiniz)")
+
+
+def ask_bool(label: str) -> bool:
+    while True:
+        raw = _raw(f"{label} (E/H): ")
+        if raw.lower() == "iptal":
+            raise Cancelled()
+        raw = raw.lower()
+        if raw in ("e", "evet", "y", "yes", "1", "true"):
+            return True
+        if raw in ("h", "hayır", "hayir", "n", "no", "0", "false"):
+            return False
+        print("Sadece E veya H girin. (iptal yazabilirsiniz)")
+
+
+def pause():
+    _raw("\nEnter ile devam...")
+
+
+
+def _make_user(user_id, username, email, password, role):
+    from app.modules.module_1.base import AdminUser, ContentCreatorUser, ViewerUser
+
+    if role == UserRole.ADMIN:
+        return AdminUser(user_id, username, email, password, role)
+    if role == UserRole.CONTENT_CREATOR:
+        return ContentCreatorUser(user_id, username, email, password, role)
+    return ViewerUser(user_id, username, email, password, role)
+
+
+def list_users(repo: UserRepository):
+    users = repo.get_all_users()
+    if not users:
+        print("Kullanıcı yok")
+        return
+    print("\n--- USERS ---")
+    for u in users:
+        print(f"{u.user_id} | {u.username} | {u.role.value} | active={u.is_active} | {u.mail}")
+
+
+def add_user(repo: UserRepository):
+    user_id = ask_required("User ID")
+    username = ask_required("Username")
+    email = ask_required("Email")
+    password = ask_required("Password")
+    role_key = ask_choice("Rol", {"1": "admin", "2": "content_creator", "3": "viewer"})
+    role = UserRole.ADMIN if role_key == "1" else (UserRole.CONTENT_CREATOR if role_key == "2" else UserRole.VIEWER)
+
+    repo.create_user(_make_user(user_id, username, email, password, role))
+    print("Kullanıcı eklendi")
+
+
+def edit_user(repo: UserRepository):
+    user_id = ask_required("User ID")
+    u = repo.get_user_by_id(user_id)
+
+    # Basit olsun diye boş bırakmayı desteklemiyoruz; iptal ile çıkış var.
+    new_username = ask_required(f"Yeni username (mevcut: {u.username})")
+    new_email = ask_required(f"Yeni email (mevcut: {u.mail})")
+
+    new_password = None
+    if ask_bool("Şifre değişsin mi?"):
+        new_password = ask_required("Yeni password")
+
+    new_role = u.role
+    if ask_bool("Rol değişsin mi?"):
+        role_key = ask_choice("Rol", {"1": "admin", "2": "content_creator", "3": "viewer"})
+        new_role = UserRole.ADMIN if role_key == "1" else (UserRole.CONTENT_CREATOR if role_key == "2" else UserRole.VIEWER)
+
+    new_active = u.is_active
+    if ask_bool("Aktiflik değişsin mi?"):
+        new_active = ask_bool("Aktif mi?")
+
+    # Private map update (repo'da update/delete yok)
+    users = getattr(repo, "_UserRepository__users")
+    username_index = getattr(repo, "_UserRepository__username_index")
+    email_index = getattr(repo, "_UserRepository__email_index")
+
+    username_index.pop(u.username.lower(), None)
+    email_index.pop(u.mail.lower(), None)
+
+    new_user = _make_user(u.user_id, new_username, new_email, u.password if new_password is None else new_password, new_role)
+    new_user.created_at = u.created_at
+    new_user.is_active = new_active
+
+    users[user_id] = new_user
+    username_index[new_user.username.lower()] = new_user.user_id
+    email_index[new_user.mail.lower()] = new_user.user_id
+
+    setattr(repo, "_UserRepository__last_modified", datetime.now())
+    getattr(repo, "_save_to_file")()
+
+    print("Kullanıcı güncellendi")
+
+
+def delete_user(repo: UserRepository):
+    user_id = ask_required("User ID")
+
+    users = getattr(repo, "_UserRepository__users")
+    if user_id not in users:
+        print("Kullanıcı bulunamadı")
+        return
+
+    username_index = getattr(repo, "_UserRepository__username_index")
+    email_index = getattr(repo, "_UserRepository__email_index")
+    u = users[user_id]
+
+    username_index.pop(u.username.lower(), None)
+    email_index.pop(u.mail.lower(), None)
+    del users[user_id]
+
+    setattr(repo, "_UserRepository__last_modified", datetime.now())
+    getattr(repo, "_save_to_file")()
+
+    print("Kullanıcı silindi")
+
+
+
+def list_channels(repo: ChannelRepository):
+    chans = repo.get_all_channels()
+    if not chans:
+        print("Kanal yok")
+        return
+    print("\n--- CHANNELS ---")
+    for ch in chans:
+        print(
+            f"{ch.channel_id} | {type(ch).__name__} | {ch.name} | owner={ch.owner_id} | {ch.status.value} | cat={getattr(ch, 'category', 'other')}"
+        )
+
+
+def add_channel(repo: ChannelRepository):
+    t = ask_choice("Kanal tipi", {"1": "Personal", "2": "Brand", "3": "Kids"})
+
+    channel_id = ask_required("Channel ID")
+    owner_id = ask_required("Owner ID")
+    name = ask_required("Name")
+    desc = ask_required("Description")
+    cat = ask_required("Category")
+
+    if t == "2":
+        ch = BrandChannel(channel_id, name, desc, owner_id)
+    elif t == "3":
+        ch = KidsChannel(channel_id, name, desc, owner_id)
+    else:
+        ch = PersonalChannel(channel_id, name, desc, owner_id)
+
+    ch.category = cat
+    repo.create_channel(ch)
+    print("Kanal eklendi")
+
+
+def edit_channel(repo: ChannelRepository):
+    channel_id = ask_required("Channel ID")
+    ch = repo.get_channel_by_id(channel_id)
+
+    ch.name = ask_required(f"Name (mevcut: {ch.name})")
+    ch.description = ask_required("Description")
+    ch.category = ask_required(f"Category (mevcut: {getattr(ch, 'category', 'other')})")
+    ch.updated_at = datetime.now()
+
+    channels = getattr(repo, "_ChannelRepository__channels")
+    channels[ch.channel_id] = ch
+
+    setattr(repo, "_ChannelRepository__last_modified", datetime.now())
+    getattr(repo, "_save_to_file")()
+
+    print("Kanal güncellendi")
+
+
+def change_channel_status(repo: ChannelRepository):
+    channel_id = ask_required("Channel ID")
+    ch = repo.get_channel_by_id(channel_id)
+
+    st_key = ask_choice(
+        f"Yeni durum (mevcut: {ch.status.value})",
+        {"1": "active", "2": "suspended", "3": "archived"},
     )
-    from implementations import (
-        PersonalChannel, BrandChannel, KidsChannel,
-        InvalidNameError, ChannelLimitReachedError,
-        InvalidAgeRangeError, ContentNotAllowedError
-    )
-    from repository import UserRepository, ChannelRepository
 
-    print("System >> Repo icin tum moduller aktarıldı (basarili)")
-except ImportError as e:
-    print(f"System >> Import hatası demoda : {e}")
-    sys.exit(1)
+    st = ChannelStatus.ACTIVE if st_key == "1" else (ChannelStatus.SUSPENDED if st_key == "2" else ChannelStatus.ARCHIVED)
+    repo.set_channel_status(ch.channel_id, st)
+    print("Durum güncellendi")
 
 
-def print_section_header(title: str):
-    # Bölüm başlığı yazdır
-    print(f"\n{' ' * 60}")
-    print(f" {title} ".center(60, "="))
-    print(f"{' ' * 60}")
+def delete_channel(repo: ChannelRepository):
+    channel_id = ask_required("Channel ID")
+
+    channels = getattr(repo, "_ChannelRepository__channels")
+    if channel_id not in channels:
+        print("Kanal bulunamadı")
+        return
+
+    owner_index = getattr(repo, "_ChannelRepository__owner_index")
+    type_index = getattr(repo, "_ChannelRepository__type_index")
+    ch = channels[channel_id]
+
+    if ch.owner_id in owner_index and channel_id in owner_index[ch.owner_id]:
+        owner_index[ch.owner_id].remove(channel_id)
+    if ch.channel_type in type_index and channel_id in type_index[ch.channel_type]:
+        type_index[ch.channel_type].remove(channel_id)
+
+    del channels[channel_id]
+
+    setattr(repo, "_ChannelRepository__last_modified", datetime.now())
+    getattr(repo, "_save_to_file")()
+
+    print("Kanal silindi")
 
 
-def create_sample_users() -> List[BaseUser]:
-    # Örnek kullanıcılar oluştur
-    print_section_header("Ornek kullanici olusturma")
-    users = []
+
+def dashboard(channel_repo: ChannelRepository):
+    channel_id = ask_required("Channel ID")
+    ch = channel_repo.get_channel_by_id(channel_id)
+
+    print("\n--- CHANNEL DASHBOARD ---")
+    print(f"ID: {ch.channel_id}")
+    print(f"Type: {type(ch).__name__}")
+    print(f"Name: {ch.name}")
+    print(f"Owner: {ch.owner_id}")
+    print(f"Status: {ch.status.value}")
+    print(f"Category: {getattr(ch, 'category', 'other')}")
+
+    # polimorfiz
+    print(f"Access Level (polymorphic): {ch.get_access_level()}")
+
+    # Basit istatisstk
     try:
-        # Admin kullanıcısı
-        admin = AdminUser(
-            "admin_demo_001",
-            "demo_admin",
-            "admin@demo.com",
-            "hashed_admin_password",
-            UserRole.ADMIN
-        )
-        users.append(admin)
-        print(f"System >> Admin olusturuldu : {admin.username}")
-        # Content creator kullanıcısı
-        creator = ContentCreatorUser(
-            "creator_demo_001",
-            "demo_creator",
-            "creator@demo.com",
-            "hashed_creator_password",
-            UserRole.CONTENT_CREATOR
-        )
-        users.append(creator)
-        print(f"System >> Icerik ureticisi olusturldu : {creator.username}")
-        # Viewer kullanıcısı
-        viewer = ViewerUser(
-            "viewer_demo_001",
-            "demo_viewer",
-            "viewer@demo.com",
-            "hashed_viewer_password",
-            UserRole.VIEWER
-        )
-        users.append(viewer)
-        print(f"System >> Izleyici olusturuldu : {viewer.username}")
-        print(f"\nSystem >> Basariyla olusturuldu {len(users)} ornek kullanicilar ")
+        stats = ch.get_channel_statistics()
+        if isinstance(stats, dict):
+            print("Statistics:")
+            for k, v in stats.items():
+                print(f"  {k}: {v}")
+        else:
+            print("Statistics:", stats)
     except Exception as e:
-        print(f"System >> HATA ornek kullanici olustururken : {e}")
-        return []
-    return users
+        print("Statistics alınamadı:", e)
 
+def run_demo_cli():
+    data_dir = os.path.join(project_root, "data")
+    os.makedirs(data_dir, exist_ok=True)
 
-def create_sample_channels() -> List[BaseChannel]:
-    # Örnek kanallar oluştur
-    print_section_header("ORNEK KANALLAR OLUSTURMA")
-    channels = []
-    try:
-        # PersonalChannel oluştur
-        personal_channel = PersonalChannel(
-            "demo_personal_001",
-            "Demo Gaming Channel",
-            "Oyun kanalima hoş geldiniz! Burada en son oyun incelemelerini, eğitimleri ve canli yayinlari bulacaksiniz.",
-            "creator_demo_001"
-        )
-        channels.append(personal_channel)
-        print(f"System >> OLUSTURLDU kisisel kanal : {personal_channel.name}")
-        # BrandChannel oluştur
-        brand_channel = BrandChannel(
-            "demo_brand_001",
-            "TechCorp Official",
-            "TechCorp'un resmi kanalı - güvenilir teknoloji ortağınız. En son ürünlerimizi, yeniliklerimizi ve sektör analizlerimizi keşfedin.",
-            "creator_demo_001"
-        )
-        channels.append(brand_channel)
-        print(f"System >> OLUSTURULDU BrandChannel : {brand_channel.name}")
-        # KidsChannel oluştur
-        kids_channel = KidsChannel(
-            "demo_kids_001",
-            "Fun Learning Adventures",
-            "5-10 yas arasi cocuklara yonelik egitici icerikler. Cocuklarin harika vakit gecirirken ögrenmelerine yardimci olan güvenli, eglenceli ve ilgi cekici videolar.",
-            "creator_demo_001"
-        )
-        channels.append(kids_channel)
-        print(f"System >> OLUSTURULDU KidsChannel: {kids_channel.name}")
-        print(f"\nSystem >> Basariyla olusturuldu {len(channels)} ornek kanal")
-    except Exception as e:
-        print(f"System >> HATA ornek kanal olusturulurken: {e}")
-        return []
-    return channels
+    user_repo = UserRepository(os.path.join(data_dir, "users.json"))
+    channel_repo = ChannelRepository(os.path.join(data_dir, "channels.json"))
 
+    print("\nMODULE 1 - DEMO iptal --> iptal yazın \n")
 
-def demonstrate_polymorphism(channels: List[BaseChannel], users: List[BaseUser]):
-    # Polimorfizm gösterimi
-    print_section_header("POLYMORPHISM GOSTERİMİ ")
-    print("\n1. POLYMORPHIC METHOD CAGRILDI - get_access_level()")
-    print("-" * 50)
-    for i, channel in enumerate(channels, 1):
-        channel_type = type(channel).__name__
-        access_level = channel.get_access_level()
-        print(f"{i}. {channel_type}: '{channel.name}'")
-        print(f"Erisim seviyesi: {access_level}")
-        print()
-    print("\n2. POLYMORPHIC METHOD CAGRILDI - can_user_access()")
-    print("-" * 50)
-    # Her kanal için farklı kullanıcı erişim testleri
-    test_users = [
-        ("admin_demo_001", UserRole.ADMIN),
-        ("creator_demo_001", UserRole.CONTENT_CREATOR),
-        ("viewer_demo_001", UserRole.VIEWER),
-        ("random_user_001", UserRole.VIEWER)
-    ]
-    for channel in channels:
-        print(f"\nSunlara erisim test ediliyor : {type(channel).__name__}: '{channel.name}'")
-        for user_id, user_role in test_users:
-            try:
-                can_access = channel.can_user_access(user_id, user_role)
-                status = "izin verildi" if can_access else "reddedildi"
-                print(f"  {user_id} ({user_role.value}): {status}")
-            except Exception as e:
-                print(f"  {user_id} ({user_role.value}): ERROR - {e}")
-    print("\n3. POLYMORPHIC DAVRANIS - Kanal Bilgisi")
-    print("-" * 50)
-    for channel in channels:
-        print(f"\nKanal: {type(channel).__name__}")
-        print(f"  ID: {channel.channel_id}")
-        print(f"  Isım: {channel.name}")
-        print(f"  Sahip : {channel.owner_id}")
-        print(f"  Tipi: {channel.channel_type.value}")
-        print(f"  Durum : {channel.status.value}")
-        print(f"  Abone: {channel.subscriber_count}")
-        print(f"  Video : {channel.video_count}")
-        print(f"  Olusturuldu : {channel.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+    while True:
+        print("\n=== ANA MENÜ ===")
+        print("1) Kullanıcı")
+        print("2) Kanal")
+        print("3) Dashboard")
+        print("0) Çıkış")
 
-# commit 7
+        sec = _raw("Seçim: ").strip()
 
-def demonstrate_encapsulation(channels: List[BaseChannel]):
-    # Kapsülleme gösterimi
-    print_section_header("ENCAPSULATION DEMONSTRATION")
-
-    for channel in channels:
-        channel_type = type(channel).__name__
-        print(f"\n{channel_type}: {channel.name}")
-
-        if isinstance(channel, PersonalChannel):
-            print(f"Gunluk max video: {channel.max_videos_per_day}")
-            channel.max_videos_per_day = 7
-            print(f"Gunluk max video (guncellendi): {channel.max_videos_per_day}")
-            channel.add_hobby("gaming")
-            print(f"Mevcut hobi: {channel.get_hobbies()}")
-        elif isinstance(channel, BrandChannel):
-            print(f"  Sirket adi: '{channel.company_name}'")
-            print(f"  Brand Verified: {channel.brand_verified}")
-            channel.company_name = "TechCorp Industries Ltd."
-            channel.marketing_budget = 50000.0
-            print(f"  Sirket adi (guncellendi): {channel.company_name}")
-        elif isinstance(channel, KidsChannel):
-            print(f"  Yas araligi : {channel.min_age}-{channel.max_age}")
-            print(f"  Ebeveyn Control: {channel.parental_control_enabled}")
-            channel.min_age = 4
-            channel.max_age = 9
-            print(f"  Yas araligi (guncellendi): {channel.min_age}-{channel.max_age}")
-
-
-def demonstrate_inheritance(channels: List[BaseChannel]):
-    # Kalıtım gösterimi
-    print_section_header("MİRAS GÖSTERİMİ")
-    print("\n1. BaseChannel'dan devralınan yöntemler")
-    print("-" * 50)
-
-    for channel in channels:
-        channel_type = type(channel).__name__
-        print(f"\n{channel_type}: {channel.name}")
-        # BaseChannel'dan kalıtılan metodlar
-        print(f"  Channel ID: {channel.channel_id}")
-        print(f"  Durum: {channel.status.value}")
-        print(f"  Abone sayisi : {channel.subscriber_count}")
-        # Inherited method - add_moderator
-        old_moderators = len(channel.moderators)
-        channel.add_moderator("test_moderator_001")
-        new_moderators = len(channel.moderators)
-        print(f"  Moderatorler: {old_moderators} -> {new_moderators}")
-        # Inherited attribute - tags
-        channel.tags.append("demo")
-        channel.tags.append("educational")
-        print(f"  Tags: {channel.tags}")
-    print("\n2. METHOD RESOLUTION ORDER (MRO)")
-    print("-" * 50)
-
-    for channel in channels:
-        channel_type = type(channel).__name__
-        mro = [cls.__name__ for cls in type(channel).__mro__]
-        print(f"{channel_type} MRO: {' -> '.join(mro)}")
-
-
-def demonstrate_static_and_class_methods():
-    # Statik ve sınıf metodları gösterimi
-    print_section_header("STATIC AND CLASS METHODS GOSTERİMİ ")
-    # Static methods
-    categories = PersonalChannel.get_recommended_categories()
-    print(f"PersonalChannel Kategori: {categories}")
-    industries = BrandChannel.get_valid_industries()
-    print(f"BrandChannel Industries: {industries}")
-    roi = BrandChannel.calculate_campaign_roi(1000, 1500)
-    print(f"Campaign ROI: {roi}%")
-    kids_categories = KidsChannel.get_valid_content_categories()
-    print(f"KidsChannel Kategori: {kids_categories}")
-    # Class methods
-    try:
-        default_personal = PersonalChannel.create_default_personal_channel("demo_user_002", "DemoUser")
-        print(f"Varsayilan PersonalChannel: {default_personal.name}")
-        verified_brand = BrandChannel.create_verified_brand_channel("demo_brand_002", "Demo Corp",
-                                                                    "contact@democorp.com")
-        print(f"Onaylanmis BrandChannel: {verified_brand.name}")
-        educational_kids = KidsChannel.create_educational_kids_channel("demo_edu_002", "mathematics", (6, 10))
-        print(f"Egitimsel KidsChannel: {educational_kids.name}")
-    except Exception as e:
-        print(f"HATA kanal olusturulurken: {e}")
-
-
-def demonstrate_exception_handling():
-    # Exception handling gösterimi
-    print_section_header("ISTISNA ISLEME GOSTERIMI")
-    # InvalidNameError test
-    try:
-        PersonalChannel("invalid_001", "x", "Valid description", "user_001")
-    except InvalidNameError as e:
-        print(f"InvalidNameError yakalandi : {e}")
-    # Property validation test
-    try:
-        test_brand = BrandChannel(
-            "test_brand_001", "Test Brand",
-            "This is a test brand channel for demonstration purposes", "user_003"
-        )
-        test_brand.marketing_budget = -1000  # Invalid: negative budget
-    except ValueError as e:
-        print(f"✓ ValueError yakalandi: {e}")
-    # Validation tests
-    tests = [("Empty name", lambda: PersonalChannel("test", "", "Valid desc", "user")),
-             ("Short desc", lambda: BrandChannel("test", "Valid Name", "Short", "user"))]
-    for test_name, test_func in tests:
         try:
-            test_func()
-            print(f"✗ {test_name}: Kod calisti hata yok")
+            if sec == "1":
+                while True:
+                    print("\n--- USER MENU ---")
+                    print("1) Listele  2) Ekle  3) Düzenle  4) Sil  0) Geri")
+                    c = _raw("Seçim: ").strip()
+                    try:
+                        if c == "1":
+                            list_users(user_repo)
+                            pause()
+                        elif c == "2":
+                            add_user(user_repo)
+                            pause()
+                        elif c == "3":
+                            edit_user(user_repo)
+                            pause()
+                        elif c == "4":
+                            delete_user(user_repo)
+                            pause()
+                        elif c == "0":
+                            break
+                        else:
+                            print("Hatalı seçim")
+                    except Cancelled:
+                        print("İşlem iptal edildi.")
+                        pause()
+
+            elif sec == "2":
+                while True:
+                    print("\n--- CHANNEL MENU ---")
+                    print("1) Listele  2) Oluştur  3) Düzenle  4) Durum  5) Sil  0) Geri")
+                    c = _raw("Seçim: ").strip()
+                    try:
+                        if c == "1":
+                            list_channels(channel_repo)
+                            pause()
+                        elif c == "2":
+                            add_channel(channel_repo)
+                            pause()
+                        elif c == "3":
+                            edit_channel(channel_repo)
+                            pause()
+                        elif c == "4":
+                            change_channel_status(channel_repo)
+                            pause()
+                        elif c == "5":
+                            delete_channel(channel_repo)
+                            pause()
+                        elif c == "0":
+                            break
+                        else:
+                            print("Hatalı seçim")
+                    except Cancelled:
+                        print("İşlem iptal edildi.")
+                        pause()
+
+            elif sec == "3":
+                try:
+                    dashboard(channel_repo)
+                except Cancelled:
+                    print("İşlem iptal edildi.")
+                pause()
+
+            elif sec == "0":
+                print("Çıkış")
+                break
+
+            else:
+                print("Hatalı seçim")
+
         except Exception as e:
-            print(f"✓ {test_name}: {type(e).__name__}")
-
-
-def main():
-    print(" " * 60)
-    print(" CHANNEL MANAGEMENT MODULE - POLI DEMO ".center(60, "="))
-    print(" " * 60)
-    print(f"\nSystem >> Demo basladi {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    try:
-        users = create_sample_users()
-        if not users:
-            print("System >> >> sample users olusturma hatasi --> mevcut")
-            return 1
-        channels = create_sample_channels()
-        if not channels:
-            print("System >>   sample channels olusturma hatasi --> mevcut")
-            return 1
-        demonstrate_polymorphism(channels, users)
-        demonstrate_encapsulation(channels)
-        demonstrate_inheritance(channels)
-        demonstrate_static_and_class_methods()
-        demonstrate_exception_handling()
-        # Demo tamamlandı
-        print_section_header("DEMO BASARIYLA TAMAMLANDI")
-        print(f"\nSystem >> Demo tamamlandi {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print("System >> Tum OOP ilkeleri basarıyla gosterildi!")
-        print("\nGosterilen Temel Kavramlar:")
-        print("  ✓ Polymorphism - Ayni methods, farkli davranislar")
-        print("  ✓ Encapsulation - Private ozellik  property erisimi ile")
-        print("  ✓ Inheritance - BaseChannel'dan paylasilan islevsellik")
-        print("  ✓ Abstraction - Farklı sekilde uygulanan soyut yontemler")
-        print("  ✓ Static Methods - Utility func orneksiz")
-        print("  ✓ Class Methods - Nesne oluşturma için fabrika yöntemleri")
-        print("  ✓ Exception Handling - Ozel istisnalar ve dogrulama")
-        return 0
-    except Exception as e:
-        print(f"\nSystem >> demo calisirken kritik hata: {e}")
-        print("System >> Demo beklenmedik bir sekilde sonlandirildi")
-        return 1
+            print(f"Hata: {type(e).__name__}: {e}")
+            pause()
 
 
 if __name__ == "__main__":
-    # Demo'yu çalıştır
-    exit_code = main()
-    sys.exit(exit_code)
+    run_demo_cli()

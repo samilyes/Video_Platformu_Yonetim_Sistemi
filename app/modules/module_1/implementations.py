@@ -1,4 +1,4 @@
-from .base import BaseChannel, ChannelType, UserRole
+from .base import BaseChannel, ChannelType #UserRole silindi
 
 
 # --- Exceptions ---
@@ -36,8 +36,7 @@ class PersonalChannel(BaseChannel):
         return True
 
     def get_channel_statistics(self, repo=None) -> dict:
-        """Modül 2'den canlı veri çekerek kanal istatistiklerini hesaplar."""
-        # 'repo' parametresi Test (Mocking) işlemleri için hayati önem taşır.
+        # Modül 2'den canlı veri çekerek kanal istatistiklerini hesaplartır
         if repo is None:
             from app.modules.module_2.repository import VideoRepository
             repo = VideoRepository()
@@ -150,7 +149,7 @@ class BrandChannel(BaseChannel):
         return ((revenue - cost) / cost) * 100
 
     @classmethod
-    def create_verified_brand_channel(cls, owner_id, company_name, email):
+    def create_verified_brand_channel(cls, owner_id, company_name): #email silindi
         channel = cls(f"brand_{owner_id}", company_name, f"Official channel for {company_name}", owner_id)
         channel.brand_verified = True
         channel.company_name = company_name
@@ -228,13 +227,13 @@ class KidsChannel(BaseChannel):
         return True
 
     def get_age_range(self):
-        return (self._min_age, self._max_age)
+        return self._min_age, self._max_age # parantezler kladırıldıki gereksiz
 
     def add_approved_educator(self, educator):
         self.educators.append(educator)
         return True
 
-    def is_content_appropriate(self, rating, tags):
+    def is_content_appropriate(self, rating): #tags silindi
         if self.content_rating == "G" and rating != "G":
             return False
         return True

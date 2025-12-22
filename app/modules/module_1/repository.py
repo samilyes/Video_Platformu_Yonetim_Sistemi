@@ -1,10 +1,27 @@
 # commit 5
 import json
 import os
-from typing import List, Optional, Dict, Any
 from datetime import datetime
-from .base import*
-from .implementations import PersonalChannel, BrandChannel, KidsChannel
+from typing import Any, Dict, List, Optional
+
+from .base import (
+    AdminUser,
+    BaseChannel,
+    BaseUser,
+    ChannelNotFoundException,
+    ChannelStatus,
+    ChannelType,
+    ContentCreatorUser,
+    DuplicateChannelException,
+    DuplicateUserException,
+    PremiumChannel,
+    PrivateChannel,
+    PublicChannel,
+    UserNotFoundException,
+    UserRole,
+    ViewerUser,
+)
+from .implementations import BrandChannel, KidsChannel, PersonalChannel
 
 
 class UserRepository:
@@ -78,7 +95,7 @@ class UserRepository:
         return {
             'user_id': user.user_id,
             'username': user.username,
-            'email': user.email,
+            'email': user.mail,
             'password_hash': user.password,
             'role': user.role.value,
             'user_type': type(user).__name__,
@@ -120,7 +137,7 @@ class UserRepository:
 
     def _update_indexes(self, user: BaseUser):
         self.__username_index[user.username.lower()] = user.user_id
-        self.__email_index[user.email.lower()] = user.user_id
+        self.__email_index[user.mail.lower()] = user.user_id
 
     def create_user(self, user: BaseUser) -> BaseUser:
         print(f"System >> Kullanici olusturma {user.user_id} username ile  '{user.username}'")
@@ -137,8 +154,8 @@ class UserRepository:
         if user.username.lower() in self.__username_index:
             raise DuplicateUserException(f"Username '{user.username}' already exists")
 
-        if user.email.lower() in self.__email_index:
-            raise DuplicateUserException(f"Email '{user.email}' already exists")
+        if user.mail.lower() in self.__email_index:
+            raise DuplicateUserException(f"Email '{user.mail}' already exists")
 
         self.__users[user.user_id] = user
         self._update_indexes(user)
@@ -185,6 +202,22 @@ class UserRepository:
     def get_user_count(self) -> int:
         return len(self.__users)
 
+    def set_user_active(self, user_id: str, is_active: bool) -> BaseUser:
+        """Kullanıcının aktif/pasif durumunu değiştirir ve JSON'a kaydeder."""
+        user = self.get_user_by_id(user_id)
+        user.is_active = bool(is_active)
+        self.__last_modified = datetime.now()
+        self._save_to_file()
+        return user
+
+    def update_user_password(self, user_id: str, new_password: str) -> BaseUser:
+        """Kullanıcının şifresini değiştirir ve JSON'a kaydeder."""
+        user = self.get_user_by_id(user_id)
+        user.password = new_password
+        self.__last_modified = datetime.now()
+        self._save_to_file()
+        return user
+
     def _validate_user_data(self, user: BaseUser) -> bool:
         # Kullanıcı verilerini doğrula
         if not user.user_id or len(user.user_id.strip()) < 3:
@@ -193,7 +226,7 @@ class UserRepository:
         if not user.username or len(user.username.strip()) < 3:
             return False
 
-        if not user.email or '@' not in user.email:
+        if not user.mail or '@' not in user.mail:
             return False
 
         if not user.password or len(user.password) < 8:
@@ -223,11 +256,11 @@ class UserRepository:
 
     @staticmethod
     def validate_username(username: str) -> bool:
-        return (isinstance(username, str) and username.strip() and 3 <= len(username.strip()) <= 30)
+        return isinstance(username, str) and username.strip() and 3 <= len(username.strip()) <= 30
 
     @staticmethod
     def validate_email(email: str) -> bool:
-        return (isinstance(email, str) and email.strip() and '@' in email and '.' in email.split('@')[1])
+        return isinstance(email, str) and email.strip() and '@' in email and '.' in email.split('@')[1]
 
 # commit 6
 
@@ -428,6 +461,25 @@ class ChannelRepository:
     def get_channel_count(self) -> int:
         return len(self.__channels)
 
+    def set_channel_status(self, channel_id: str, new_status: ChannelStatus) -> BaseChannel:
+        """Kanal durumunu değiştirir ve JSON'a kaydeder."""
+        channel = self.get_channel_by_id(channel_id)
+        channel.change_status(new_status)
+        self.__last_modified = datetime.now()
+        self._save_to_file()
+        return channel
+
+    def increment_channel_video_count(self, channel_id: str, delta: int = 1) -> BaseChannel:
+        # Kanal video sayacını artırır ve jsno'a kaydeder
+        if delta <= 0:
+            raise ValueError("delta must be positive")
+        channel = self.get_channel_by_id(channel_id)
+        channel.video_count += delta
+        channel.updated_at = datetime.now()
+        self.__last_modified = datetime.now()
+        self._save_to_file()
+        return channel
+
     def _validate_channel_data(self, channel: BaseChannel) -> bool:
         # Kanal verilerini doğrula
         return (channel.channel_id and len(channel.channel_id.strip()) >= 3 and
@@ -437,7 +489,7 @@ class ChannelRepository:
 
     @staticmethod
     def validate_channel_name(name: str) -> bool:
-        return (isinstance(name, str) and name.strip() and 3 <= len(name.strip()) <= 50)
+        return isinstance(name, str) and name.strip() and 3 <= len(name.strip()) <= 50
 
     @staticmethod
     def validate_channel_description(description: str) -> bool:
