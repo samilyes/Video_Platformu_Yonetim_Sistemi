@@ -71,11 +71,9 @@ class VideoStatus(Enum):
     PUBLISHED = "published"   # Yayında
     BLOCKED = "blocked"       # Yasaklı
 
-# VideoBase Class
-
 class VideoBase(ABC):
     """
-    Tüm videolar için temel sınıf.
+    Tüm videolar için temel sınıftır.
     Her video tipinde olması gereken ortak özellikleri ve mecburi metotları barındırır.
     """
     def __init__(
@@ -105,7 +103,7 @@ class VideoBase(ABC):
         
         self._tags = tags if tags else []
         
-        # İstatistikler (default 0)
+        # İstatistikler
         self._view_count = 0
         self._likes = 0
 
@@ -307,8 +305,6 @@ class VideoBase(ABC):
         }
         return descriptions.get(visibility, "Bilinmiyor.")
 
-# Yardımcı Fonksiyonlar 
-
 def validate_video_title(title: str) -> bool:
     """
     Video başlığının kurallara uyup uymadığını kontrol eder.
@@ -351,17 +347,15 @@ def generate_video_slug(title: str) -> str:
     Başlıktan URL dostu slug oluşturur.
     title (str): Başlık.
     """
-    # Önce küçük harfe çevir
+    # Küçük harfe çevir
     slug = title.lower()
     
-    # Alfanümerik olmayan karakterleri sil (boşluk ve tire hariç)
+    # Boşluk ve tire hariç diğer geçersiz karakterleri sil.
     slug = re.sub(r'[^a-z0-9\s-]', '', slug)
     slug = re.sub(r'\s+', '-', slug)
     
-    # Max 50 karakter
+    # Maksimum 50 karakter
     return slug[:50]
-
-# Yardımcı Sınıflar
 
 class VideoMetadata:
     """

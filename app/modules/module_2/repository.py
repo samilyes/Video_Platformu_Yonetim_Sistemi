@@ -2,30 +2,24 @@
 Video Repository (Veri Erişimi)
 ===============================
 
-Veritabanı işlemlerini simüle eden katman.
-Bu katman, verilerin (Video nesneleri) kalıcı olarak saklanması, sorgulanması
-ve yönetilmesinden sorumludur. Şimdilik verileri bir dictionary içinde RAM'de tutuyoruz.
-İlerde buraya SQL bağlantısı eklenebilir.
+Veritabanı işlemlerini simüle eden katmandır.
+Bu katman, verilerin kalıcı olarak saklanması, sorgulanması ve yönetilmesinden sorumludur.
 """
 
 from typing import List, Optional, Dict, Union
 from datetime import datetime
-
-# Relative imports
 from .base import VideoBase, VideoStatus, VideoVisibility, VideoNotFoundError
 
 class VideoRepository:
     """
-    Video nesnelerini yöneten depo sınıfı.
-    CRUD (Create, Read, Update, Delete) işlemleri burada yapılır.
-    Repository Pattern kullanılarak veri erişimi soyutlanmıştır.
+    Video nesnelerini yöneten depo sınıfıdır.
+    Create, read, update, delete işlemleri burada yapılır.
+    Repository kullanılarak veri erişimi soyutlanır.
     """
 
     def __init__(self):
-        # Key: video_id, Value: VideoBase object
         # Veritabanı tablosunu simüle eder.
         self._videos: Dict[str, VideoBase] = {}
-        # İndeksleme simülasyonu (Performans için)
         self._channel_index: Dict[str, List[str]] = {} 
 
     def save(self, video: VideoBase) -> VideoBase:
@@ -34,10 +28,10 @@ class VideoRepository:
         Eğer video zaten varsa günceller, yoksa yeni ekler.
         Ayrıca indeksleri günceller.
         
-        Args:
+        Argümanlar:
             video (VideoBase): Kaydedilecek video nesnesi.
             
-        Returns:
+        Döndürür:
             VideoBase: Kaydedilen video nesnesi.
         """
         # Veriyi kaydet
@@ -55,26 +49,26 @@ class VideoRepository:
         """
         ID ile video bulur.
         
-        Args:
-            video_id (str): Video ID'si.
+        Argümanlar:
+            video_id: Video ID'si.
             
-        Returns:
-            Optional[VideoBase]: Bulunursa nesne, bulunamazsa None.
+        Döndürür:
+            Optional[VideoBase]: Bulunursa nesne, bulunamazsa None döner.
         """
         return self._videos.get(video_id)
 
     def get_by_id(self, video_id: str) -> VideoBase:
         """
-        ID ile video bulur, yoksa hata fırlatır (daha güvenli).
+        ID ile video bulur, yoksa hata verir.
         
-        Args:
-            video_id (str): Video ID'si.
+        Argümanlar:
+            video_id : Video ID'si.
             
-        Returns:
+        Döndürür:
             VideoBase: Bulunan video nesnesi.
             
-        Raises:
-            VideoNotFoundError: Video bulunamazsa fırlatılır.
+        Raise eder:
+            VideoNotFoundError: Video bulunamazsa hata verir.
         """
         video = self.find_by_id(video_id)
         if not video:
@@ -85,22 +79,21 @@ class VideoRepository:
         """
         Videoyu siler.
         
-        Args:
+        Argümanlar:
             video_id (str): Silinecek video ID'si.
             
-        Returns:
-            bool: Silme başarılıysa True, aksi halde False.
+        Döndürür:
+            bool: Silme başarılıysa True, aksi halde False dödürür.
         """
         if video_id in self._videos:
             video = self._videos[video_id]
-            # İndeksten sil
             if video.channel_id in self._channel_index:
                 if video_id in self._channel_index[video.channel_id]:
-                    self._channel_index[video.channel_id].remove(video_id)
-            
+                    self._channel_index[video.channel_id].remove(video_id) 
             del self._videos[video_id]
             return True
         return False
+    # İndeksten siler.
 
     def find_all(self) -> List[VideoBase]:
         """
@@ -117,14 +110,14 @@ class VideoRepository:
         İndeks kullanarak daha hızlı erişim sağlar.
         
         Args:
-            channel_id (str): Kanal ID'si.
+            channel_id: Kanal ID'si.
             
         Returns:
             List[VideoBase]: O kanala ait videolar.
         """
-        # İndeksten ID'leri al
+        # İndeksten ID'leri alır.
         video_ids = self._channel_index.get(channel_id, [])
-        # Nesneleri getir
+        # Nesneleri getirir.
         return [self._videos[vid] for vid in video_ids if vid in self._videos]
 
     def filter_videos(
@@ -141,19 +134,21 @@ class VideoRepository:
         Her parametre opsiyoneldir; sadece verilen parametreler filtrelemeye dahil edilir.
 
         Argümanlar:
-            status (Optional[VideoStatus]): Videonun durumuna göre filtreleme yapar.
-                (Örn: Sadece YAYINDA olanları getir).
-            visibility (Optional[VideoVisibility]): Görünürlük ayarına göre filtreler.
-                (Örn: Sadece PUBLIC videolar).
-            channel_id (Optional[str]): Belirli bir kanalın videolarını getirir.
-            date_from (Optional[datetime]): Oluşturulma tarihi bu tarihten sonra olanlar.
-            date_to (Optional[datetime]): Oluşturulma tarihi bu tarihten önce olanlar.
+            status: Videonun durumuna göre filtreleme yapar.
+                (Örn: Sadece YAYINDA olanları getirir.).
+           
+            visibility: Görünürlük ayarına göre filtreler.
+                (Örn: Sadece PUBLIC olan videolardır.).
+            
+            channel_id: Belirli bir kanalın videolarını getirir.
+            date_from: Oluşturulma tarihi bu tarihten sonra olanlar.
+            date_to: Oluşturulma tarihi bu tarihten önce olanlar.
 
         Döndürür:
             List[VideoBase]: Kriterlere uyan Video nesnelerinin listesi.
             Eğer hiçbir kriter verilmezse tüm videoları döndürür.
         """
-        # Başlangıç kümesi: Kanal ID varsa indeksten, yoksa hepsinden
+        # Başlangıç kümesi: Kanal ID varsa indeksten, yoksa hepsinden alır.
         if channel_id:
             start_list = self.find_by_channel(channel_id)
         else:
@@ -184,16 +179,13 @@ class VideoRepository:
     def count(self) -> int:
         """
         Depodaki toplam video sayısını döndürür.
-        
-        Döndürür:
-            int: Video sayısı.
         """
         return len(self._videos)
 
     def clear(self):
         """
-        Depoyu tamamen temizler. (Test amaçlı kullanılabilir)
-        Dikkat: Bu işlem geri alınamaz.
+        Depoyu tamamen temizler.
+        Bu işlem geri alınamaz.
         """
         self._videos.clear()
         self._channel_index.clear()

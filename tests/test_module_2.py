@@ -6,6 +6,7 @@ project_root = os.path.abspath(os.path.join(current_dir, ".."))
 
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+
 import unittest
 from datetime import datetime, timedelta
 
@@ -14,27 +15,41 @@ from datetime import datetime, timedelta
 try:
     # Modül içi import (Eğer bir paket parçası olarak çalıştırılırsa)
     from app.modules.module_2.base import (
-        VideoBase, VideoStatus, VideoVisibility, 
-        VideoError, VideoNotFoundError, InvalidVideoStatusError, 
-        validate_video_title, format_duration
+        VideoBase,
+        VideoStatus,
+        VideoVisibility,
+        VideoError,
+        VideoNotFoundError,
+        InvalidVideoStatusError,
+        validate_video_title,
+        format_duration,
     )
     from app.modules.module_2.implementations import (
-        StandardVideo, LiveStreamVideo, ShortVideo, VideoService
+        StandardVideo,
+        LiveStreamVideo,
+        ShortVideo,
     )
+    from app.modules.module_2.services import VideoService
     from app.modules.module_2.repository import VideoRepository
 except ImportError:
     # Kök dizinden veya doğrudan çalıştırılırsa
-    # PYTHONPATH'in ayarlı olması gerekebilir veya relative importlar çalışmayabilir.
-    # Bu durumda app.modules.video... yolunu deneriz.
     try:
         from app.modules.module_2.base import (
-            VideoBase, VideoStatus, VideoVisibility, 
-            VideoError, VideoNotFoundError, InvalidVideoStatusError, 
-            validate_video_title, format_duration
+            VideoBase,
+            VideoStatus,
+            VideoVisibility,
+            VideoError,
+            VideoNotFoundError,
+            InvalidVideoStatusError,
+            validate_video_title,
+            format_duration,
         )
         from app.modules.module_2.implementations import (
-            StandardVideo, LiveStreamVideo, ShortVideo, VideoService
+            StandardVideo,
+            LiveStreamVideo,
+            ShortVideo,
         )
+        from app.modules.module_2.services import VideoService
         from app.modules.module_2.repository import VideoRepository
     except ImportError:
         # Son çare: sys.path manipülasyonu (Kullanıcının init.py'sine benzer)
@@ -42,15 +57,23 @@ except ImportError:
         project_root = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
         if project_root not in sys.path:
             sys.path.insert(0, project_root)
-        
+
         from app.modules.module_2.base import (
-            VideoBase, VideoStatus, VideoVisibility, 
-            VideoError, VideoNotFoundError, InvalidVideoStatusError, 
-            validate_video_title, format_duration
+            VideoBase,
+            VideoStatus,
+            VideoVisibility,
+            VideoError,
+            VideoNotFoundError,
+            InvalidVideoStatusError,
+            validate_video_title,
+            format_duration,
         )
         from app.modules.module_2.implementations import (
-            StandardVideo, LiveStreamVideo, ShortVideo, VideoService
+            StandardVideo,
+            LiveStreamVideo,
+            ShortVideo,
         )
+        from app.modules.module_2.services import VideoService
         from app.modules.module_2.repository import VideoRepository
 
 
@@ -61,8 +84,8 @@ class TestVideoBaseAndUtils(unittest.TestCase):
         """Başlık doğrulama fonksiyonunu test eder."""
         self.assertTrue(validate_video_title("Normal Başlık"))
         self.assertFalse(validate_video_title(""))
-        self.assertFalse(validate_video_title("A" * 101)) # Çok uzun
-        self.assertFalse(validate_video_title("<script>alert</script>")) # Yasaklı karakter
+        self.assertFalse(validate_video_title("A" * 101))  # Çok uzun
+        self.assertFalse(validate_video_title("<script>alert</script>"))  # Yasaklı karakter
 
     def test_utils_format_duration(self):
         """Süre formatlama fonksiyonunu test eder."""
@@ -77,7 +100,6 @@ class TestVideoBaseAndUtils(unittest.TestCase):
 
     def test_preview_object_creation(self):
         """Factory method create_preview_object test eder."""
-        # StandardVideo üzerinden çağıralım
         preview = StandardVideo.create_preview_object("Preview Test", 60)
         self.assertIsNotNone(preview)
         self.assertEqual(preview.title, "ÖNİZLEME: Preview Test")
@@ -90,13 +112,13 @@ class TestVideoImplementations(unittest.TestCase):
     def test_standard_video(self):
         v = StandardVideo("c1", "Std Video", "Desc", 600, resolution="4K")
         self.assertEqual(v.get_video_type(), "StandardVideo")
-        
+
         # Monetization: Base(1.0) + Duration(>600 yok, tam 600) + 4K(0.3) = 1.3
         self.assertAlmostEqual(v.calculate_monetization_potential(), 1.3)
-        
+
         # Policy
         self.assertTrue(v.validate_content_policy())
-        
+
         # Description boşsa hata
         v.description = ""
         self.assertFalse(v.validate_content_policy())
@@ -104,9 +126,8 @@ class TestVideoImplementations(unittest.TestCase):
     def test_short_video(self):
         v = ShortVideo("c1", "Shorty", "Desc", 45)
         self.assertEqual(v.get_video_type(), "ShortVideo")
-        # Monetization: Base(0.8) = 0.8
         self.assertAlmostEqual(v.calculate_monetization_potential(), 0.8)
-        
+
         # Policy: 60sn üzeri olamaz
         v._duration_seconds = 61
         self.assertFalse(v.validate_content_policy())
@@ -114,14 +135,13 @@ class TestVideoImplementations(unittest.TestCase):
     def test_live_stream_video(self):
         v = LiveStreamVideo("c1", "Live Now", "Desc", chat_enabled=True)
         self.assertEqual(v.get_video_type(), "LiveStreamVideo")
-        # Monetization: Base(1.5) + Chat(0.5) = 2.0
         self.assertAlmostEqual(v.calculate_monetization_potential(), 2.0)
-        
+
         # Durum geçişi (Live özel durumu: Uploaded -> Published direkt olabilir)
         v.start_stream()
         self.assertEqual(v.status, VideoStatus.PUBLISHED)
         self.assertTrue(v.is_live)
-        
+
         v.end_stream(3600)
         self.assertFalse(v.is_live)
         self.assertEqual(v.duration_seconds, 3600)
@@ -168,7 +188,7 @@ class TestVideoRepository(unittest.TestCase):
         private_chan1 = self.repo.filter_videos(channel_id="chan1", visibility=VideoVisibility.PRIVATE)
         self.assertEqual(len(private_chan1), 1)
         self.assertEqual(private_chan1[0].title, "V2")
-    
+
     def test_count_and_clear(self):
         self.repo.save(self.v1)
         self.assertEqual(self.repo.count(), 1)
@@ -190,10 +210,10 @@ class TestVideoService(unittest.TestCase):
 
     def test_upload_process_publish_flow(self):
         v = self.service.create_standard_video("c1", "Flow Test", "Desc", 120)
-        
+
         # Upload
         self.service.upload_video(v.video_id, b"data")
-        
+
         # Process (Processing -> Published)
         self.service.process_video(v.video_id)
         self.assertEqual(v.status, VideoStatus.PUBLISHED)
@@ -206,14 +226,13 @@ class TestVideoService(unittest.TestCase):
     def test_invalid_transition(self):
         """Geçersiz durum geçişini test eder."""
         v = self.service.create_standard_video("c1", "Test", "Desc", 120)
-        # Uploaded -> Published direkt geçiş (StandardVideo için yasak olmalı, önce Processing)
         with self.assertRaises(InvalidVideoStatusError):
             v.transition_status(VideoStatus.PUBLISHED)
 
     def test_search_videos(self):
         self.service.create_standard_video("c1", "Python Tutorial", "Desc", 600)
         self.service.create_standard_video("c1", "Java Tutorial", "Desc", 600)
-        
+
         results = self.service.search_videos(query="Python")
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].title, "Python Tutorial")
@@ -222,10 +241,11 @@ class TestVideoService(unittest.TestCase):
         """Toplu yükleme metodunu test eder."""
         uploads = [
             {"channel_id": "c1", "title": "V1", "duration": 100},
-            {"channel_id": "c1", "title": "V2", "duration": 200}
+            {"channel_id": "c1", "title": "V2", "duration": 200},
         ]
         self.service.bulk_upload_simulation(uploads)
         self.assertEqual(self.repo.count(), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

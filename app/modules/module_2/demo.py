@@ -1,195 +1,252 @@
-"""
-Demo Scripti
-===========
-Bu script modülün nasıl çalıştığını test etmek ve göstermek için yazılır.
-Senaryo oldukça kapsamlıdır ve modülün tüm özelliklerini simüle eder.
-"""
+# Demo Scripti
+# ===========
+# Bu script modülün nasıl çalıştığını test etmek ve göstermek için yazılır.
+# Senaryo oldukça kapsamlıdır ve modülün tüm özelliklerini simüle eder.
 
-import time
+import os
 import sys
-from datetime import datetime, timedelta
-from .base import VideoVisibility, VideoStatus, VideoError
-from .repository import VideoRepository
-from .implementations import VideoService
+import time
+from datetime import datetime
 
-def print_header(title: str):
-    """Konsola şık bir başlık koyar."""
-    print("\n" + "="*60)
-    print(f"   {title.upper()}")
-    print("="*60)
-    time.sleep(0.5)
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
-def print_step(step_num: int, description: str):
-    """Adım bilgisini gösterir."""
-    print(f"\n>>> ADIM {step_num}: {description}")
-    print("-" * 40)
-    time.sleep(0.3)
+from app.modules.module_2.base import VideoError, VideoStatus, VideoVisibility, format_duration, VideoUploadError
+from app.modules.module_2.repository import VideoRepository
+from app.modules.module_2.services import VideoService
+from app.modules.module_2.implementations import (
+        StandardVideo,
+        LiveStreamVideo,
+        ShortVideo,
+    )
+
+def _banner(title: str):
+    print("\n" + "=" * 70)
+    print(title)
+    print("=" * 70)
+
+def _step(title: str):
+    print("\n" + "-" * 70)
+    print(title)
+    print("-" * 70)
+
+def _typewriter(text: str, delay: float = 0.008):
+    for ch in text:
+        print(ch, end="", flush=True)
+        time.sleep(delay)
+    print()
+
+
+def _prompt(msg: str, default: str = "") -> str:
+    value = input(msg).strip()
+    return value if value else default
+
+def _read_int(msg: str, default: int) -> int:
+    # Kullanıcının girdiği değeri int'e çevirir.
+    # Geçersiz girişte default döner.
+    raw = _prompt(msg, str(default))
+    try:
+        value = int(raw)
+        return value
+    except ValueError:
+        return default
+    
+def _choose_visibility(default: VideoVisibility = VideoVisibility.PUBLIC) -> VideoVisibility:
+    mapping = {
+        "1": VideoVisibility.PUBLIC,
+        "2": VideoVisibility.PRIVATE,
+        "3": VideoVisibility.UNLISTED,
+    }
+
+    print("Görünürlük seç:")
+    print("  1) PUBLIC   (herkese açıktır.)")
+    print("  2) PRIVATE  (Sadece kanal sahibi görebilir.)")
+    print("  3) UNLISTED (liste dışıdır, bağlantıya sahip olanlar görebilir.)")
+
+    choice = _prompt(f"Seçim [varsayılan {default.value}]: ", "").lower()
+    return mapping.get(choice, default)
+
+def _print_video(video):
+    print(
+        f"  • id={video.video_id} | {video} | süre={format_duration(video.duration_seconds)} | görünürlük={video.visibility.value}"
+    )
+
+def _menu() -> str:
+    print("\n" + "-" * 70)
+    print("MENU")
+    print("  1) Standart video oluştur")
+    print("  2) Short video oluştur")
+    print("  3) Canlı yayın oluştur")
+    print("  4) Video yükle")
+    print("  5) Video işle (PROCESS -> PUBLISH/BLOCK)")
+    print("  6) Video engelle")
+    print("  7) Kanal videolarını listele")
+    print("  8) Arama/filtreleme")
+    print("  9) Video istatistikleri")
+    print("  0) Çıkış")
+    return _prompt("Seçim: ")
 
 def run_demo():
-    print_header("SMART VIDEO PLATFORM - KAPSAMLI DEMO SENARYOSU")
+    _banner("AKILLI VİDEO PLATFORMU - MODULE 2 DEMO")
+    _typewriter("Sistem başlatılıyor...")
 
-    # ADIM 1: Başlatma
-
-    print_step(1, "Sistem Başlatılıyor.")
     repo = VideoRepository()
     service = VideoService(repo)
-    print(f"[SİSTEM] Repository oluşturuldu: {repo}")
-    print(f"[SİSTEM] Service katmanı aktif: {service}")
-    print("[SİSTEM] Veritabanı hazır.")
-    
-    # ADIM 2: Video Oluşturma
-    
-    print_step(2, "İçerik Üreticileri Video Oluşturuyor.")
-    
-    # Eğitim Kanalı
-    channel_edu = "channel_tech_edu_001"
-    
-    print(f"'{channel_edu}' kanalı yeni bir standart video oluşturuyor.")
-    v1 = service.create_standard_video(
-        channel_id=channel_edu,
-        title="Python ile OOP Dersleri #1",
-        description="Nesne Yönelimli Programlamaya kapsamlı bir giriş dersi.",
-        duration_seconds=900, # 15 dakika
-        visibility=VideoVisibility.PUBLIC,
-        resolution="1080p"
-    )
-    print(f"Oluşturuldu: {v1.title} (ID: {v1.video_id})")
-    print(f"Durum: {v1.status.value}, Tür: {v1.get_video_type()}")
 
-    # Short videosu
-    print(f"\n'{channel_edu}' kanalı bir Short video oluşturuyor.")
-    v2 = service.create_short_video(
-        channel_id=channel_edu,
-        title="Python İpucu: List Comprehension Nedir?",
-        duration_seconds=45,
-        visibility=VideoVisibility.PUBLIC
-    )
-    print(f" -> Oluşturuldu: {v2.title}")
-    print(f"    Süre: {v2.duration_seconds}s (Shorts limiti < 60s)")
+    while True:
+        choice = _menu()
 
-    # Oyun Kanalı
-    channel_gamer = "channel_gamer_zone_99"
-    print(f"\n'{channel_gamer}' kanalı bir Canlı Yayın planlıyor.")
-    v3 = service.create_live_stream(
-        channel_id=channel_gamer,
-        title="Büyük Turnuva Finali - CANLI",
-        scheduled_time=datetime.now() + timedelta(minutes=30)
-    )
-    print(f" -> Planlandı: {v3.title}")
-    print(f"    Planlanan Saat: {v3.scheduled_start_time}")
+        if choice == "0":
+            _banner("ÇIKIŞ")
+            print(f"Toplam video sayısı: {repo.count()}")
+            return
 
-    # ADIM 3: Yükleme ve İşleme
+        if choice == "1":
+            _step("Standart video oluştur")
+            channel_id = _prompt("Kanal ID: ", "channel_tech_edu_001")
+            title = _prompt("Başlık: ", "Demo Standard")
+            description = _prompt("Açıklama: ", "Açıklama")
+            duration = _read_int("Süre (sn): ", 120)
+            visibility = _choose_visibility(VideoVisibility.PUBLIC)
+            resolution = _prompt("Çözünürlük: ", "1080p")
 
-    print_step(3, "Video Yükleme ve İşleme Süreci.")
+            v = service.create_standard_video(
+                channel_id=channel_id,
+                title=title,
+                description=description,
+                duration_seconds=duration,
+                visibility=visibility,
+                resolution=resolution,
+            )
+            print("Oluşturuldu")
+            _print_video(v)
 
-    try:
-        print(f"'{v1.title}' yükleniyor.")
-        service.upload_video(v1.video_id, b"dosya_binary_data_mp4")
-        
-        print(f"'{v1.title}' işleniyor")
-        service.process_video(v1.video_id)
-        
-        # Son durumu kontrol eder
-        updated_v1 = repo.get_by_id(v1.video_id)
-        print(f" -> SONUÇ: '{updated_v1.title}' şu an {updated_v1.status.value.upper()} durumunda.")
-        
-    except VideoError as e:
-        print(f"İşlem başarısız: {e}")
+        elif choice == "2":
+            _step("Short video oluştur")
+            channel_id = _prompt("Kanal ID: ", "channel_tech_edu_001")
+            title = _prompt("Başlık: ", "Demo Short")
+            duration = _read_int("Süre (sn): ", 30)
 
-    try:
-        print(f"\n'{v2.title}' yükleniyor.")
-        service.upload_video(v2.video_id, b"dosya_binary_data_mov")
-        
-        print(f"'{v2.title}' işleniyor.")
-        service.process_video(v2.video_id)
-        print(f" -> SONUÇ: '{v2.title}' YAYINDA.")
-    except Exception as e:
-        print(f"[HATA] {e}")
+            # Süre kuralı en başta kontrol edilir; hatalıysa görünürlük sormaya gerek yok.
+            if duration > 60:
+                print("HATA: Shorts süresi 60 saniyeyi geçemez.")
+                continue
 
-    # ADIM 4: Canlı Yayın Senaryosu
-    print_step(4, "Canlı Yayın Başlıyor")
-    
-    # Yayıncı yayını başlatıyor
-    print(f"'{v3.title}' için yayın sinyali gönderiliyor")
-    v3.start_stream()
-    # Repo'yu güncel tutmak için save tutar
-    repo.save(v3)
-    
-    if v3.is_live:
-        print(" -> YAYIN AKTİF (Status: PUBLISHED)")
-        print(" -> İzleyici sohbete katılıyor...")
-        v3.max_concurrent_viewers = 15000
-    
-    time.sleep(0.5)
-    print("\nYayın sona eriyor...")
-    v3.end_stream(duration_seconds=3600)
-    print(f" -> Yayın bitti. Toplam Süre: {v3.duration_seconds} saniye.")
+            visibility = _choose_visibility(VideoVisibility.PUBLIC)
 
-    # ADIM 5: Analitik ve Raporlama
+            try:
+                v = service.create_short_video(
+                    channel_id=channel_id,
+                    title=title,
+                    duration_seconds=duration,
+                    visibility=visibility,
+                )
+                print("Oluşturuldu")
+                _print_video(v)
+            except VideoError as e:
+                print(f"HATA: {e}")
 
-    print_step(5, "Gelir ve İstatistik Analizi")
-    print("Her video türü kendi metodunu kullanır.\n")
+        elif choice == "3":
+            _step("Canlı yayın oluştur")
+            channel_id = _prompt("Kanal ID: ", "channel_gamer_zone_99")
+            title = _prompt("Başlık: ", "Demo Live")
 
-    all_videos = repo.find_all()
-    total_potential = 0.0
+            v = service.create_live_stream(
+                channel_id=channel_id,
+                title=title,
+                scheduled_time=datetime.now(),
+            )
+            print("Oluşturuldu")
+            _print_video(v)
 
-    print(f"{'BAŞLIK':<40} | {'TÜR':<15} | {'PUAN':<5}")
-    print("-" * 70)
+            # Canlı yayın akışı
+            start = _prompt("Yayını şimdi başlatılsın mı? (e/h) [e]: ", "e").lower()
+            if start in ("e", "evet", "y"):
+                v.start_stream()
+                repo.save(v)
+                print(f"Yayın başladı | status={v.status.value}")
+                end_dur = _read_int("Yayın süresi (sn): ", 120)
+                v.end_stream(end_dur)
+                repo.save(v)
+                print(f"Yayın bitti | süre={format_duration(v.duration_seconds)}")
 
-    for vid in all_videos:
-        score = vid.calculate_monetization_potential()
-        total_potential += score
-        print(f"{vid.title[:38]:<40} | {vid.get_video_type():<15} | {score:.1f}")
+        elif choice == "4":
+            _step("Video yükle")
+            video_id = _prompt("Video ID: ")
+            size = _read_int("Dosya boyutu (byte): ", 16)
+            payload = b"x" * max(0, size)
 
-    print("-" * 70)
-    print(f"Ortalama Platform Puanı: {total_potential / len(all_videos):.2f}")
+            try:
+                service.upload_video(video_id, payload)
+                print("Yükleme başarılı")
+            except VideoError as e:
+                print(f"HATA: {e}")
 
-    # ADIM 6: Filtreleme
+        elif choice == "5":
+            _step("Video işle")
+            video_id = _prompt("Video ID: ")
 
-    print_step(6, "Gelişmiş Arama ve Filtreleme")
-    print("Kanal: 'channel_tech_edu_001' olan videolar aranıyor.")
-    edu_videos = service.list_videos_by_channel(channel_edu)
-    for v in edu_videos:
-        print(f" * {v.title}")
+            try:
+                service.process_video(video_id)
+                v = repo.get_by_id(video_id)
+                print(f"Son durum: {v.status.value.upper()} | published_at={v.published_at}")
+            except VideoError as e:
+                print(f"HATA: {e}")
 
-    print("\nSüresi 10 dakikadan uzun videolar.")
-    long_videos = service.search_videos(min_duration=600)
-    for v in long_videos:
-        print(f" * {v.title} ({v.duration_seconds}s)")
+        elif choice == "6":
+            _step("Video engelle")
+            video_id = _prompt("Video ID: ")
+            reason = _prompt("Sebep: ", "Kural ihlali")
 
-    # ADIM 7: Hata Senaryosu ve Admin Engellemesi
+            try:
+                service.block_video(video_id, reason)
+                v = repo.get_by_id(video_id)
+                print(f"Engellendi: {v.title} | status={v.status.value.upper()}")
+            except VideoError as e:
+                print(f"HATA: {e}")
 
-    print_step(7, "Yönetici İşlemleri ve Hata Yönetimi")
+        elif choice == "7":
+            _step("Kanal videolarını listele")
+            channel_id = _prompt("Kanal ID: ")
+            videos = service.list_videos_by_channel(channel_id)
+            print(f"Bulunan video: {len(videos)}")
+            for v in videos:
+                _print_video(v)
 
-    # Yeni bir 'sakıncalı' video oluşturma
-    v_bad = service.create_short_video(
-        channel_id="user_spammer",
-        title="Yasaklı İçerik",
-        duration_seconds=10,
-        visibility=VideoVisibility.PUBLIC
-    )
-    # Yasaklı videoyu process etme
-    service.process_video(v_bad.video_id)
-    print(f"Oluşturuldu: {v_bad.title} (Status: {v_bad.status.value})")
+        elif choice == "8":
+            _step("Arama/filtreleme")
+            query = _prompt("Başlık içinde ara: ", "")
+            min_dur = _read_int("Minimum süre (sn): ", 0)
+            visibility = _choose_visibility(VideoVisibility.PUBLIC)
 
-    print("\nBu içerik platform kurallarına aykırı bulundu. Engelleniyor.")
-    service.block_video(v_bad.video_id, reason="Topluluk Kuralları İhlali")
-    
-    # Durumu kontrol et
-    blocked_v = repo.get_by_id(v_bad.video_id)
-    print(f" -> Son Durum: {blocked_v.status.value.upper()}")
-    
-    # Geçersiz durum testi
-    print("\nEngelli videoyu geçersiz duruma almaya çalışma testi.")
-    try:
-        # BLOCKED -> UPLOADED geçişi mantıken imkansızdır
-        blocked_v.transition_status(VideoStatus.UPLOADED)
-        print("Mantık hatası var.")
-    except Exception as e:
-        print(f"Beklenen Hata Yakalandı: {e}")
-    print_header("DEMO BAŞARIYLA TAMAMLANDI")
-    print(f"Toplam Video Sayısı: {repo.count()}")
-    print("Program sonlanıyor.")
+            results = service.search_videos(
+                query=query if query else None,
+                min_duration=min_dur if min_dur > 0 else None,
+                visibility=visibility,
+            )
+
+            print(f"Bulunan video: {len(results)}")
+            for v in results:
+                _print_video(v)
+
+        elif choice == "9":
+            _step("Video istatistikleri")
+            video_id = _prompt("Video ID: ")
+
+            try:
+                stats = service.get_video_statistics(video_id)
+                print(f"video_id: {stats['video_id']}")
+                print(f"type: {stats['type']}")
+                print(f"views: {stats['views']}")
+                print(f"likes: {stats['likes']}")
+                print(f"monetization_score: {stats['monetization_score']:.2f}")
+            except VideoError as e:
+                print(f"HATA: {e}")
+
+        else:
+            print("Geçersiz seçim")
+
 
 if __name__ == "__main__":
     run_demo()
