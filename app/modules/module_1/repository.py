@@ -95,7 +95,7 @@ class UserRepository:
         return {
             'user_id': user.user_id,
             'username': user.username,
-            'email': user.mail,
+            'email': user.email,
             'password_hash': user.password,
             'role': user.role.value,
             'user_type': type(user).__name__,
@@ -111,7 +111,8 @@ class UserRepository:
 
             user_classes = {
                 'AdminUser': AdminUser,
-                'ContentCreatorUser': ContentCreatorUser
+                'ContentCreatorUser': ContentCreatorUser,
+                'ViewerUser': ViewerUser
             }
 
             user_class = user_classes.get(user_type, ViewerUser)
@@ -137,7 +138,7 @@ class UserRepository:
 
     def _update_indexes(self, user: BaseUser):
         self.__username_index[user.username.lower()] = user.user_id
-        self.__email_index[user.mail.lower()] = user.user_id
+        self.__email_index[user.email.lower()] = user.user_id
 
     def create_user(self, user: BaseUser) -> BaseUser:
         print(f"System >> Kullanici olusturma {user.user_id} username ile  '{user.username}'")
@@ -154,8 +155,8 @@ class UserRepository:
         if user.username.lower() in self.__username_index:
             raise DuplicateUserException(f"Username '{user.username}' already exists")
 
-        if user.mail.lower() in self.__email_index:
-            raise DuplicateUserException(f"Email '{user.mail}' already exists")
+        if user.email.lower() in self.__email_index:
+            raise DuplicateUserException(f"Email '{user.email}' already exists")
 
         self.__users[user.user_id] = user
         self._update_indexes(user)
@@ -219,17 +220,16 @@ class UserRepository:
         return user
 
     def _validate_user_data(self, user: BaseUser) -> bool:
-        # Kullanıcı verilerini doğrula
-        if not user.user_id or len(user.user_id.strip()) < 3:
+        # Hangi verinin gelmediğini anlamak için print ekleyelim
+        if not user.user_id:
+            print("DEBUG: Validation Failed - user_id eksik")
             return False
-
-        if not user.username or len(user.username.strip()) < 3:
+        if not user.username:
+            print("DEBUG: Validation Failed - username eksik")
             return False
-
-        if not user.mail or '@' not in user.mail:
-            return False
-
-        if not user.password or len(user.password) < 8:
+        # Burası kritik: user.mail property'si üzerinden erişiyoruz
+        if not user.email or "@" not in user.email:
+            print(f"DEBUG: Validation Failed - email geçersiz: {getattr(user, 'email', 'YOK')}")
             return False
 
         return True

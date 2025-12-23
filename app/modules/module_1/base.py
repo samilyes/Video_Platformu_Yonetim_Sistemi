@@ -1,6 +1,6 @@
 from enum import Enum
 from datetime import datetime
-from typing import Set, List, Optional
+from typing import List
 from abc import ABC, abstractmethod
 
 
@@ -10,34 +10,42 @@ class UserRole(Enum):
     VIEWER = "viewer"
 
 
-class BaseUser:
+class BaseUser(ABC):
     def __init__(self, user_id, username, email, password, role):
         self.user_id = user_id
         self.username = username
-        self.__email = email
-        self.__password = password
+        self.email = email
+        self.password = password
         self.role = role
         self.created_at = datetime.now()
         self.is_active = True
 
+    @abstractmethod
+    def get_permissions(self) -> List[str]:
+        # Her kullanıcı alt sınıfı kendi izin listesini döndürmelidir
+        pass
+
     @property
     def mail(self):
-        return self.__email
+        return getattr(self, "_email", None)
 
     @mail.setter
     def mail(self, value):
         if "@" not in value:
             raise ValueError(f"E mail geçersiz ! ")
+        self._email = value
 
     @property
     def password(self):
-        return self.__password
+        return getattr(self, "_password", None)
 
+    # base.py
     @password.setter
     def password(self, value):
-        if "@" not in value:
-            raise ValueError( f"Yetersiz karakter ! ")
-        self.__password = value
+        if len(value) < 8:
+            raise ValueError("Şifre en az 8 karakter olmalıdır!")
+        self._password = value
+
 
 
 
@@ -74,15 +82,21 @@ class AdminUser(BaseUser):
     def __init__(self, user_id, username, email, password, role=UserRole.ADMIN):
         super().__init__(user_id, username, email, password, role)
 
+    def get_permissions(self) -> List[str]:
+        return ["manage_users", "delete_video", "edit_channels", "view_analytics"]
 
 class ContentCreatorUser(BaseUser):
     def __init__(self, user_id, username, email, password, role=UserRole.CONTENT_CREATOR):
         super().__init__(user_id, username, email, password, role)
-
+    def get_permissions(self) -> List[str]:
+        return ["upload_video", "edit_own_channel", "view_analytics"]
 
 class ViewerUser(BaseUser):
     def __init__(self, user_id, username, email, password, role=UserRole.VIEWER):
         super().__init__(user_id, username, email, password, role)
+
+    def get_permissions(self) -> List[str]:
+        return ["view_video", "comment", "subscribe"]
 
 
 class BaseChannel(ABC):

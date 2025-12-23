@@ -6,14 +6,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), ".")))
 
 # Module-1 (User/Channel)
 from app.modules.module_1.base import ChannelStatus, UserRole
-from app.modules.module_1.implementations import PersonalChannel, BrandChannel, KidsChannel
+from app.modules.module_1.implementations import PersonalChannel, BrandChannel, KidsChannel,AdminUser
 from app.modules.module_1.repository import UserRepository, ChannelRepository
 
 # Module-2 (Video)
 from app.modules.module_2.base import VideoStatus, VideoVisibility
 from app.modules.module_2.repository import VideoRepository
-from app.modules.module_2.implementations import VideoService
-
+from app.modules.module_2.services import VideoService
 
 def ask(msg, default=None):
     if default is None:
@@ -66,60 +65,90 @@ def list_users(user_repo):
         return
     print("\n--> USERS\n")
     for u in users:
-        print(f"{u.user_id} | {u.username} | {u.role.value} | active={u.is_active} | {u.mail}")
+        print(f"{u.user_id} | {u.username} | {u.role.value} | active={u.is_active} | {u.email}")
 
 
 def add_user(user_repo):
     print("\n--> USER EKLE\n")
     user_id = ask("User ID")
     username = ask("Username")
-    email = ask("Email")
-    password = ask("Password")
-    role = choose_role(UserRole.VIEWER)
-    user_repo.create_user(make_user(user_id, username, email, password, role))
-    print("Kullanıcı eklendi")
 
+    # Email için ayrı döngü
+    while True:
+        email = ask("Email")
+        if "@" in email: # Basit kontrol, istersen base'deki gibi try-except de yapabilirsin
+            break
+        print("[HATA]: Geçersiz e-posta formatı!")
+
+    # Şifre için ayrı döngü (Kritik nokta burası)
+    while True:
+        password = ask("Password")
+        try:
+            # Geçici bir nesne oluşturarak setter'ı test ediyoruz
+            # Ya da doğrudan uzunluk kontrolü yapabiliriz:
+            if len(password) < 8:
+                raise ValueError("Şifre en az 8 karakter olmalıdır!")
+            break # Hata yoksa döngüden çıkar
+        except ValueError as e:
+            print(f"[HATA]: {e}")
+
+    # Her şey tamamsa rol seç ve kaydet
+    role = choose_role(UserRole.VIEWER)
+    new_user = make_user(user_id, username, email, password, role)
+    user_repo.create_user(new_user)
+    print("Kullanıcı başarıyla eklendi.")
 
 def edit_user(user_repo):
     print("\n--> KULLANICI DÜZENLE\n")
     user_id = ask("User ID")
     u = user_repo.get_user_by_id(user_id)
 
+    # Değişmeyecek verileri baştan alalım
     new_username = ask("Username", u.username)
-    new_email = ask("Email", u.mail)
 
-    change_pwd = ask("Şifre değişsin mi? (E/H)", "H").lower() in ("e", "evet")
-    new_password = ask("Yeni password") if change_pwd else None
+    # Kural sağlanana kadar dönen döngü
+    while True:
+        new_email = ask("Email", u.email)
 
-    change_role = ask("Rol değişsin mi? (E/H)", "H").lower() in ("e", "evet")
-    new_role = choose_role(u.role) if change_role else u.role
+        change_pwd = ask("Şifre değişsin mi? (E/H)", "H").lower() in ("e", "evet")
+        # Eğer değişmeyecekse eski şifreyi, değişecekse yeni girişi al
+        new_password = ask("Yeni password") if change_pwd else u.password
 
-    change_active = ask("Aktiflik değişsin mi? (E/H)", "H").lower() in ("e", "evet")
-    new_active = (ask("Aktif mi? (true/false)", str(u.is_active)).lower() in (
-    "true", "1", "e", "evet")) if change_active else u.is_active
+        change_role = ask("Rol değişsin mi? (E/H)", "H").lower() in ("e", "evet")
+        new_role = choose_role(u.role) if change_role else u.role
 
-    # repo private map update (basit şekilde)
-    users = getattr(user_repo, "_UserRepository__users")
-    username_index = getattr(user_repo, "_UserRepository__username_index")
-    email_index = getattr(user_repo, "_UserRepository__email_index")
+        change_active = ask("Aktiflik değişsin mi? (E/H)", "H").lower() in ("e", "evet")
+        new_active = (ask("Aktif mi? (true/false)", str(u.is_active)).lower() in (
+        "true", "1", "e", "evet")) if change_active else u.is_active
 
-    # index temizle
-    username_index.pop(u.username.lower(), None)
-    email_index.pop(u.mail.lower(), None)
+        try:
+            # Validasyon kontrolü: Yeni nesne oluşturmayı dene
+            new_user = make_user(u.user_id, new_username, new_email, new_password, new_role)
+            new_user.created_at = u.created_at
+            new_user.is_active = new_active
 
-    new_user = make_user(u.user_id, new_username, new_email, u.password if new_password is None else new_password,
-                         new_role)
-    new_user.created_at = u.created_at
-    new_user.is_active = new_active
+            # Eğer buraya kadar geldiyse veriler GEÇERLİDİR. Kayda geçebiliriz.
+            users = getattr(user_repo, "_UserRepository__users")
+            username_index = getattr(user_repo, "_UserRepository__username_index")
+            email_index = getattr(user_repo, "_UserRepository__email_index")
 
-    users[user_id] = new_user
-    username_index[new_user.username.lower()] = new_user.user_id
-    email_index[new_user.mail.lower()] = new_user.user_id
+            # Eski indeksleri temizle ve yenilerini yaz
+            username_index.pop(u.username.lower(), None)
+            email_index.pop(u.email.lower(), None)
 
-    setattr(user_repo, "_UserRepository__last_modified", datetime.now())
-    getattr(user_repo, "_save_to_file")()
+            users[user_id] = new_user
+            username_index[new_user.username.lower()] = new_user.user_id
+            email_index[new_user.email.lower()] = new_user.user_id
 
-    print("Kullanıcı güncellendi")
+            setattr(user_repo, "_UserRepository__last_modified", datetime.now())
+            getattr(user_repo, "_save_to_file")()
+
+            print("Kullanıcı başarıyla güncellendi.")
+            break  # BAŞARILI: Döngüden çık
+
+        except ValueError as e:
+            print(f"\n[DÜZENLEME HATASI]: {e}")
+            print("Lütfen bilgileri kurallara uygun şekilde tekrar giriniz.\n")
 
 
 def delete_user(user_repo):
@@ -136,7 +165,7 @@ def delete_user(user_repo):
     u = users[user_id]
 
     username_index.pop(u.username.lower(), None)
-    email_index.pop(u.mail.lower(), None)
+    email_index.pop(u.email.lower(), None)
     del users[user_id]
 
     setattr(user_repo, "_UserRepository__last_modified", datetime.now())

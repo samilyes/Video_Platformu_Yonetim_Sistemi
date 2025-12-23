@@ -1,0 +1,23 @@
+{
+  "channels": {
+    "kanal12": {
+      "channel_id": "kanal12",
+      "name": "samil",
+      "description": "vlog",
+      "owner_id": "superuser",
+      "channel_type": "personal",
+      "status": "active",
+      "created_at": "2025-12-23T17:57:20.806974",
+      "updated_at": "2025-12-23T17:59:13.300356",
+      "subscriber_count": 0,
+      "video_count": 1,
+      "moderators": [],
+      "tags": [],
+      "channel_class": "PersonalChannel"
+    }
+  },
+  "metadata": {
+    "last_modified": "2025-12-23T17:59:13.300357",
+    "total_channels": 1
+  }
+}

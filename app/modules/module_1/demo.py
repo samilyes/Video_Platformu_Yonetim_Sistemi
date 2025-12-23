@@ -59,14 +59,13 @@ def pause():
     _raw("\nEnter ile devam...")
 
 
-
+from app.modules.module_1.base import AdminUser, ContentCreatorUser, ViewerUser
 def _make_user(user_id, username, email, password, role):
-    from app.modules.module_1.base import AdminUser, ContentCreatorUser, ViewerUser
-
     if role == UserRole.ADMIN:
         return AdminUser(user_id, username, email, password, role)
     if role == UserRole.CONTENT_CREATOR:
         return ContentCreatorUser(user_id, username, email, password, role)
+        # Default olarak ViewerUser döndür
     return ViewerUser(user_id, username, email, password, role)
 
 
@@ -84,56 +83,67 @@ def add_user(repo: UserRepository):
     user_id = ask_required("User ID")
     username = ask_required("Username")
     email = ask_required("Email")
-    password = ask_required("Password")
+    password = ask_required("Password (En az 8 karakter)")
     role_key = ask_choice("Rol", {"1": "admin", "2": "content_creator", "3": "viewer"})
     role = UserRole.ADMIN if role_key == "1" else (UserRole.CONTENT_CREATOR if role_key == "2" else UserRole.VIEWER)
 
-    repo.create_user(_make_user(user_id, username, email, password, role))
-    print("Kullanıcı eklendi")
+    try:
+        # Nesne oluşturma ve kaydetme işlemi
+        new_user = _make_user(user_id, username, email, password, role)
+        repo.create_user(new_user)
+        print("Kullanıcı başarıyla eklendi.")
+    except ValueError as e:
+        print(f"\n[DOĞRULAMA HATASI]: {e}")
 
 
 def edit_user(repo: UserRepository):
     user_id = ask_required("User ID")
     u = repo.get_user_by_id(user_id)
 
-    # Basit olsun diye boş bırakmayı desteklemiyoruz; iptal ile çıkış var.
     new_username = ask_required(f"Yeni username (mevcut: {u.username})")
     new_email = ask_required(f"Yeni email (mevcut: {u.mail})")
 
-    new_password = None
+    # Yazım hatası düzeltildi: passsword -> password
+    new_password = u.password
     if ask_bool("Şifre değişsin mi?"):
-        new_password = ask_required("Yeni password")
+        new_password = ask_required("Yeni password (8+ karakter)")
 
     new_role = u.role
     if ask_bool("Rol değişsin mi?"):
         role_key = ask_choice("Rol", {"1": "admin", "2": "content_creator", "3": "viewer"})
-        new_role = UserRole.ADMIN if role_key == "1" else (UserRole.CONTENT_CREATOR if role_key == "2" else UserRole.VIEWER)
+        new_role = UserRole.ADMIN if role_key == "1" else (
+            UserRole.CONTENT_CREATOR if role_key == "2" else UserRole.VIEWER)
 
     new_active = u.is_active
     if ask_bool("Aktiflik değişsin mi?"):
         new_active = ask_bool("Aktif mi?")
 
-    # Private map update (repo'da update/delete yok)
-    users = getattr(repo, "_UserRepository__users")
-    username_index = getattr(repo, "_UserRepository__username_index")
-    email_index = getattr(repo, "_UserRepository__email_index")
+    # --- KORUMA BLOĞU ---
+    try:
+        # Yeni nesneyi oluşturmayı deniyoruz (Hata varsa burada fırlayacak)
+        new_user = _make_user(u.user_id, new_username, new_email, new_password, new_role)
+        new_user.created_at = u.created_at
+        new_user.is_active = new_active
 
-    username_index.pop(u.username.lower(), None)
-    email_index.pop(u.mail.lower(), None)
+        # Kayıt ve Index Güncelleme
+        users = getattr(repo, "_UserRepository__users")
+        username_index = getattr(repo, "_UserRepository__username_index")
+        email_index = getattr(repo, "_UserRepository__email_index")
 
-    new_user = _make_user(u.user_id, new_username, new_email, u.password if new_password is None else new_password, new_role)
-    new_user.created_at = u.created_at
-    new_user.is_active = new_active
+        username_index.pop(u.username.lower(), None)
+        email_index.pop(u.mail.lower(), None)
 
-    users[user_id] = new_user
-    username_index[new_user.username.lower()] = new_user.user_id
-    email_index[new_user.mail.lower()] = new_user.user_id
+        users[user_id] = new_user
+        username_index[new_user.username.lower()] = new_user.user_id
+        email_index[new_user.mail.lower()] = new_user.user_id
 
-    setattr(repo, "_UserRepository__last_modified", datetime.now())
-    getattr(repo, "_save_to_file")()
+        setattr(repo, "_UserRepository__last_modified", datetime.now())
+        getattr(repo, "_save_to_file")()
 
-    print("Kullanıcı güncellendi")
+        print("Kullanıcı başarıyla güncellendi.")
 
+    except ValueError as e:
+        print(f"\n[HATA]: Güncelleme başarısız! {e}")
 
 def delete_user(repo: UserRepository):
     user_id = ask_required("User ID")

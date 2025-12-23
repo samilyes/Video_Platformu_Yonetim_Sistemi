@@ -76,19 +76,21 @@ class ChannelService:
 
     def create_channel(self, channel: BaseChannel, requested_by_user_id: Optional[str] = None) -> BaseChannel:
 
-        #Kanal oluşturma use-case.
-        # owner user var mı kontrol eder
+        # Kanal oluşturma use-case.
+        # Sahiplik statusune sahip kullanıcı var mı kontrol eder
         # istenirse requested_by_user_id ile basit yetki kontrolü yapılır
 
-        # Owner mevcut mu?
+        # Sahiplik mevcut mu?
         self._user_repo.get_user_by_id(channel.owner_id)
 
-        # requested_by verilmişse ve owner değilse sadece admin oluşturabilsin
+        # requested_by verilmişse ve sahibi değilse sadece admin oluşturabilsin
         if requested_by_user_id and requested_by_user_id != channel.owner_id:
             requester = self._user_repo.get_user_by_id(requested_by_user_id)
             if requester.role != UserRole.ADMIN:
                 raise PermissionError("Only ADMIN can create channel on behalf of another user")
 
+            if "create_channel_on_behalf" not in requester.get_permissions():
+                raise PermissionError("Bu kullanıcının başkası adına kanal oluşturma yetkisi yok!")
         return self._channel_repo.create_channel(channel)
 
     def create_channel_by_type(
@@ -131,18 +133,19 @@ class ChannelService:
         return self._channel_repo.get_all_channels()
 
     def change_status(self, channel_id: str, new_status: ChannelStatus, requested_by_user_id: str) -> ServiceResult:
-        # Kanal durum değişimi.
-        # owner veya ADMIN değiştirebilir
-
         try:
             channel = self._channel_repo.get_channel_by_id(channel_id)
             requester = self._user_repo.get_user_by_id(requested_by_user_id)
 
-            if requested_by_user_id != channel.owner_id and requester.role != UserRole.ADMIN:
-                return ServiceResult(ok=False, message="Not authorized")
+            is_owner = requested_by_user_id == channel.owner_id
+            can_manage = "change_channel_status" in requester.get_permissions()
+
+            if not is_owner and not can_manage:
+                return ServiceResult(ok=False, message="Bu işlemi yapmaya yetkiniz yok.")
 
             self._channel_repo.set_channel_status(channel_id, new_status)
-            return ServiceResult(ok=True, message="Status updated", data={"channel_id": channel_id, "status": new_status.value})
+            return ServiceResult(ok=True, message="Status updated",
+                                 data={"channel_id": channel_id, "status": new_status.value})
 
         except (ChannelNotFoundException, UserNotFoundException) as e:
             return ServiceResult(ok=False, message=str(e))
@@ -160,10 +163,7 @@ class ChannelService:
         channel = self._channel_repo.get_channel_by_id(channel_id)
 
         # implementations.py tarafı bazı sınıflarda repo parametresi
-        try:
-            return channel.get_channel_statistics(repo=video_repo)
-        except TypeError:
-            return channel.get_channel_statistics()
+        return channel.get_channel_statistics()
 
 
 class Module1ServiceFacade:
@@ -177,3 +177,7 @@ class Module1ServiceFacade:
         self.users = UserService(user_repo=user_repo)
         # aynı user_repo instance'ını paylaşmak için:
         self.channels = ChannelService(channel_repo=channel_repo, user_repo=self.users.repo)
+
+    def get_user_capabilities(self, user_id: str) -> List[str]:
+        user = self.users.get_user(user_id)
+        return user.get_permissions()

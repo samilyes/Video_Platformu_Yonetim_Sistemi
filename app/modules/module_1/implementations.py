@@ -1,5 +1,5 @@
-from .base import BaseChannel, ChannelType #UserRole silindi
-
+from .base import BaseChannel, ChannelType ,BaseUser , UserRole #UserRole silindi
+from typing import List
 
 # --- Exceptions ---
 class InvalidNameError(Exception): pass
@@ -18,6 +18,28 @@ class BrandVerificationError(Exception): pass
 
 
 class SubscriptionRequiredError(Exception): pass
+
+
+class AdminUser(BaseUser):
+    def __init__(self, user_id, username, email, password, role=UserRole.ADMIN):
+        super().__init__(user_id, username, email, password, role)
+
+    def get_permissions(self) -> List[str]:
+        return ["delete_user", "suspend_channel", "edit_any_content", "view_analytics"]
+
+class ContentCreatorUser(BaseUser):
+    def __init__(self, user_id, username, email, password, role=UserRole.CONTENT_CREATOR):
+        super().__init__(user_id, username, email, password, role)
+
+    def get_permissions(self) -> List[str]:
+        return ["create_video", "edit_own_channel", "view_own_analytics"]
+
+class ViewerUser(BaseUser):
+    def __init__(self, user_id, username, email, password, role=UserRole.VIEWER):
+        super().__init__(user_id, username, email, password, role)
+
+    def get_permissions(self) -> List[str]:
+        return ["view_video", "subscribe", "comment"]
 
 
 # --- PersonalChannel ---
